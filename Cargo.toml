@@ -1,6 +1,6 @@
 [package]
-name = "libopus"
-version = "0.1.0"
+name = "libpvm"
+version = "0.2.0"
 authors = ["Lucian Carata <lc525@cam.ac.uk>",
            "Thomas Bytheway <tb403@cam.ac.uk>"]
 build = "build.rs"
@@ -9,7 +9,7 @@ build = "build.rs"
 cbindgen = { git = "https://github.com/eqrion/cbindgen.git", branch = "master" }
 
 [lib]
-name = "opus"
+name = "pvm"
 path = "src/lib.rs"
 crate-type = ["rlib", "cdylib"]
 
@@ -33,6 +33,7 @@ maplit = "*"
 uuid = { version = "0.6", features = ["serde"] }
 zip = "0.3.1"
 chrono = { version = ">=0.4.3", features = ["serde"] }
+error-chain = "0.12.0"
 neo4j = {path = "modules/rusty-bolt/neo4j" }
 pvm-cfg = { path = "modules/pvm-cfg" }
 pvm-data = { path = "modules/pvm-data" }
