@@ -1,0 +1,40 @@
+[package]
+name = "libpvm"
+version = "@PROJECT_VERSION@"
+authors = ["Lucian Carata <lc525@cam.ac.uk>",
+           "Thomas Bytheway <tb403@cam.ac.uk>"]
+build = "build.rs"
+
+[build-dependencies]
+cbindgen = { git = "https://github.com/eqrion/cbindgen.git", branch = "master" }
+
+[lib]
+name = "pvm"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[workspace]
+members = [
+    "modules/pvm-cfg",
+    "modules/pvm-data",
+    "modules/pvm-views",
+]
+
+[dependencies]
+lending-library = "0.1.*"
+lazy_static = "*"
+serde = "1.0"
+serde_json = "*"
+serde_derive = "1.0"
+libc = "*"
+nix = "0.9.0"
+rayon = "0.8.2"
+maplit = "*"
+uuid = { version = "0.6", features = ["serde"] }
+zip = "0.3.1"
+chrono = { version = ">=0.4.3", features = ["serde"] }
+error-chain = "0.12.0"
+neo4j = {path = "modules/rusty-bolt/neo4j" }
+pvm-cfg = { path = "modules/pvm-cfg" }
+pvm-data = { path = "modules/pvm-data" }
+pvm-views = { path = "modules/pvm-views" }
