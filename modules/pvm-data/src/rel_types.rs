@@ -1,5 +1,3 @@
-use chrono::{DateTime, Utc};
-
 use {Denumerate, Enumerable, HasDst, HasID, HasSrc, RelGenerable, ID};
 
 #[derive(Clone, Copy, Debug)]
@@ -17,14 +15,14 @@ pub struct Inf {
     src: ID,
     dst: ID,
     pub pvm_op: PVMOps,
-    pub generating_call: String,
+    pub ctx: ID,
     pub byte_count: i64,
 }
 
 #[derive(Debug)]
 pub struct InfInit {
     pub pvm_op: PVMOps,
-    pub generating_call: String,
+    pub ctx: ID,
     pub byte_count: i64,
 }
 
@@ -55,7 +53,7 @@ impl RelGenerable for Inf {
             src,
             dst,
             pvm_op: init.pvm_op,
-            generating_call: init.generating_call,
+            ctx: init.ctx,
             byte_count: init.byte_count,
         }
     }
@@ -66,16 +64,14 @@ pub struct Named {
     id: ID,
     src: ID,
     dst: ID,
-    pub generating_call: String,
-    pub start: DateTime<Utc>,
-    pub end: DateTime<Utc>,
+    pub start: ID,
+    pub end: ID,
 }
 
 #[derive(Debug)]
 pub struct NamedInit {
-    pub generating_call: String,
-    pub start: DateTime<Utc>,
-    pub end: DateTime<Utc>,
+    pub start: ID,
+    pub end: ID,
 }
 
 impl HasID for Named {
@@ -106,7 +102,6 @@ impl RelGenerable for Named {
             dst,
             start: init.start,
             end: init.end,
-            generating_call: init.generating_call,
         }
     }
 }

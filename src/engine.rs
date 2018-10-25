@@ -1,4 +1,4 @@
-use ingest::{ingest_stream, Parseable, pvm::PVM};
+use ingest::{ingest_stream, pvm::PVM, Parseable};
 use iostream::IOStream;
 use neo4j_glue::{CSVView, Neo4JView};
 use query::low::count_processes;
@@ -77,11 +77,9 @@ impl Engine {
         }
     }
 
-    pub fn register_view_type<T:View + Sized + 'static>(&mut self) -> EngineResult<usize> {
+    pub fn register_view_type<T: View + Sized + 'static>(&mut self) -> EngineResult<usize> {
         if let Some(ref mut pipeline) = self.pipeline {
-            Ok(pipeline
-                .view_ctrl
-                .register_view_type::<T>())
+            Ok(pipeline.view_ctrl.register_view_type::<T>())
         } else {
             Err("Pipeline not running".into())
         }
@@ -118,7 +116,7 @@ impl Engine {
         }
     }
 
-    pub fn init_record<T:Parseable>(&mut self) -> EngineResult<()> {
+    pub fn init_record<T: Parseable>(&mut self) -> EngineResult<()> {
         if let Some(ref mut pipeline) = self.pipeline {
             T::init(&mut pipeline.pvm);
             Ok(())
@@ -127,9 +125,10 @@ impl Engine {
         }
     }
 
-    pub fn ingest_record<T:Parseable>(&mut self, rec: &T) -> EngineResult<()> {
+    pub fn ingest_record<T: Parseable>(&mut self, rec: &T) -> EngineResult<()> {
         if let Some(ref mut pipeline) = self.pipeline {
-            rec.parse(&mut pipeline.pvm).map_err(|e| e.to_string().into())
+            rec.parse(&mut pipeline.pvm)
+                .map_err(|e| e.to_string().into())
         } else {
             Err("Pipeline not running".into())
         }

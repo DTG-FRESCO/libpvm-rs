@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter, Result as FMTResult},
+    mem,
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc::SyncSender,
@@ -8,13 +9,15 @@ use std::{
 };
 
 use data::{
-    node_types::{ConcreteType, DataNode, Name, NameNode, PVMDataType, PVMDataType::*},
+    node_types::{
+        ConcreteType, ContextType, CtxNode, DataNode, Name, NameNode, PVMDataType, PVMDataType::*,
+        SchemaNode,
+    },
     rel_types::{Inf, InfInit, Named, NamedInit, PVMOps, Rel},
     Denumerate, Enumerable, HasID, MetaStore, RelGenerable, ID,
 };
 use views::DBTr;
 
-use chrono::{DateTime, TimeZone, Utc};
 use lending_library::{LendingLibrary, Loan};
 use uuid::Uuid;
 
@@ -44,9 +47,15 @@ pub type NodeGuard = Loan<ID, DataNode>;
 pub type RelGuard = Loan<(&'static str, ID, ID), Rel>;
 type NameGuard = Loan<Name, NameNode>;
 
+enum CtxStore {
+    Node(ID),
+    Lazy(&'static ContextType, HashMap<&'static str, String>),
+}
+
 pub struct PVM {
     db: DB,
     type_cache: HashSet<&'static ConcreteType>,
+    ctx_type_cache: HashSet<&'static ContextType>,
     uuid_cache: HashMap<Uuid, ID>,
     node_cache: LendingLibrary<ID, DataNode>,
     rel_cache: LendingLibrary<(&'static str, ID, ID), Rel>,
@@ -54,8 +63,7 @@ pub struct PVM {
     open_cache: HashMap<Uuid, HashSet<Uuid>>,
     name_cache: LendingLibrary<Name, NameNode>,
     cont_cache: HashMap<Uuid, ID>,
-    cur_time: DateTime<Utc>,
-    cur_evt: String,
+    cur_ctx: CtxStore,
     pub unparsed_events: HashSet<String>,
 }
 
@@ -64,25 +72,37 @@ impl PVM {
         PVM {
             db: DB::create(db),
             type_cache: HashSet::new(),
+            ctx_type_cache: HashSet::new(),
             uuid_cache: HashMap::new(),
             node_cache: LendingLibrary::new(),
             rel_cache: LendingLibrary::new(),
-            id_counter: AtomicUsize::new(0),
+            id_counter: AtomicUsize::new(1),
             open_cache: HashMap::new(),
             name_cache: LendingLibrary::new(),
             cont_cache: HashMap::new(),
-            cur_time: Utc.timestamp(0, 0),
-            cur_evt: String::new(),
+            cur_ctx: CtxStore::Node(ID::new(0)),
             unparsed_events: HashSet::new(),
         }
     }
 
-    pub fn set_time(&mut self, new_time: DateTime<Utc>) {
-        self.cur_time = new_time;
+    pub fn new_ctx(&mut self, ty: &'static ContextType, cont: HashMap<&'static str, String>) {
+        assert!(self.ctx_type_cache.contains(ty));
+        self.cur_ctx = CtxStore::Lazy(ty, cont);
     }
 
-    pub fn set_evt(&mut self, new_evt: String) {
-        self.cur_evt = new_evt;
+    pub fn ctx(&mut self) -> ID {
+        match self.cur_ctx {
+            CtxStore::Node(i) => i,
+            CtxStore::Lazy(..) => {
+                let id = self._nextid();
+                let (ty, cont) = match mem::replace(&mut self.cur_ctx, CtxStore::Node(id)) {
+                    CtxStore::Lazy(ty, c) => (ty, c),
+                    CtxStore::Node(_) => unreachable!(),
+                };
+                self.db.create_node(CtxNode::new(id, ty, cont).unwrap());
+                id
+            }
+        }
     }
 
     pub fn release(&mut self, uuid: &Uuid) {
@@ -95,18 +115,18 @@ impl PVM {
         ID::new(self.id_counter.fetch_add(1, Ordering::Relaxed) as u64)
     }
 
-    fn _decl_rel<T: RelGenerable + Enumerable<Target = Rel>>(
+    fn _decl_rel<T: RelGenerable + Enumerable<Target = Rel>, S: Fn(ID) -> T::Init>(
         &mut self,
         src: ID,
         dst: ID,
-        init: T::Init,
+        init: S,
     ) -> RelGuard {
         let triple = (stringify!(T), src, dst);
         if self.rel_cache.contains_key(&triple) {
             self.rel_cache.lend(&triple).unwrap()
         } else {
             let id = self._nextid();
-            let rel = T::new(id, src, dst, init).enumerate();
+            let rel = T::new(id, src, dst, init(self.ctx())).enumerate();
             self.rel_cache.insert(triple, rel);
             let r = self.rel_cache.lend(&triple).unwrap();
             self.db.create_rel(&*r);
@@ -115,32 +135,30 @@ impl PVM {
     }
 
     fn _inf(&mut self, src: &impl HasID, dst: &impl HasID, pvm_op: PVMOps) -> RelGuard {
-        self._decl_rel::<Inf>(
-            src.get_db_id(),
-            dst.get_db_id(),
-            InfInit {
-                pvm_op,
-                generating_call: self.cur_evt.clone(),
-                byte_count: 0,
-            },
-        )
+        self._decl_rel::<Inf, _>(src.get_db_id(), dst.get_db_id(), |ctx| InfInit {
+            pvm_op,
+            ctx,
+            byte_count: 0,
+        })
     }
 
     fn _named(&mut self, src: &impl HasID, dst: &NameNode) -> RelGuard {
-        self._decl_rel::<Named>(
-            src.get_db_id(),
-            dst.get_db_id(),
-            NamedInit {
-                start: self.cur_time,
-                end: Utc.timestamp(0, 0),
-                generating_call: self.cur_evt.clone(),
-            },
-        )
+        self._decl_rel::<Named, _>(src.get_db_id(), dst.get_db_id(), |ctx| NamedInit {
+            start: ctx,
+            end: ID::new(0),
+        })
     }
 
-    pub fn new_concrete(&mut self, ty: &'static ConcreteType) {
+    pub fn register_data_type(&mut self, ty: &'static ConcreteType) {
         self.type_cache.insert(ty);
-        self.db.new_node_type(ty);
+        let id = self._nextid();
+        self.db.create_node(SchemaNode::from_data(id, ty));
+    }
+
+    pub fn register_ctx_type(&mut self, ty: &'static ContextType) {
+        self.ctx_type_cache.insert(ty);
+        let id = self._nextid();
+        self.db.create_node(SchemaNode::from_ctx(id, ty));
     }
 
     pub fn add(
@@ -152,7 +170,7 @@ impl PVM {
     ) -> NodeGuard {
         assert!(self.type_cache.contains(&ty));
         let id = self._nextid();
-        let node = DataNode::new(pvm_ty, ty, id, uuid, init);
+        let node = DataNode::new(pvm_ty, ty, id, uuid, self.ctx(), init);
         if let Some(nid) = self.uuid_cache.insert(uuid, id) {
             self.node_cache.remove(&nid);
         }
@@ -166,9 +184,13 @@ impl PVM {
         &mut self,
         ty: &'static ConcreteType,
         uuid: Uuid,
-        init: Option<MetaStore>,
+        init: Option<HashMap<&'static str, String>>,
     ) -> NodeGuard {
         if !self.uuid_cache.contains_key(&uuid) {
+            let init = match init {
+                Some(v) => Some(MetaStore::from_map(v, self.ctx(), ty)),
+                None => None,
+            };
             self.add(ty.pvm_ty, ty, uuid, init)
         } else {
             self.node_cache.lend(&self.uuid_cache[&uuid]).unwrap()
@@ -197,12 +219,8 @@ impl PVM {
         assert_eq!(act.pvm_ty(), &Actor);
         match ent.pvm_ty() {
             Store => {
-                let f = self.add(
-                    Store,
-                    ent.ty(),
-                    ent.uuid(),
-                    Some(ent.meta.snapshot(&self.cur_time)),
-                );
+                let ctx = self.ctx();
+                let f = self.add(Store, ent.ty(), ent.uuid(), Some(ent.meta.snapshot(ctx)));
                 self._inf(ent, &*f, PVMOps::Version);
                 self._inf(act, &*f, PVMOps::Sink)
             }
@@ -214,11 +232,12 @@ impl PVM {
         assert_eq!(act.pvm_ty(), &Actor);
         match ent.pvm_ty() {
             Store => {
+                let ctx = self.ctx();
                 let es = self.add(
                     EditSession,
                     ent.ty(),
                     ent.uuid(),
-                    Some(ent.meta.snapshot(&self.cur_time)),
+                    Some(ent.meta.snapshot(ctx)),
                 );
                 self.open_cache.insert(ent.uuid(), hashset!(act.uuid()));
                 self._inf(ent, &*es, PVMOps::Version);
@@ -256,12 +275,8 @@ impl PVM {
                 .unwrap()
                 .remove(&act.uuid());
             if self.open_cache[&ent.uuid()].is_empty() {
-                let f = self.add(
-                    Store,
-                    ent.ty(),
-                    ent.uuid(),
-                    Some(ent.meta.snapshot(&self.cur_time)),
-                );
+                let ctx = self.ctx();
+                let f = self.add(Store, ent.ty(), ent.uuid(), Some(ent.meta.snapshot(ctx)));
                 self._inf(ent, &*f, PVMOps::Version);
             }
         }
@@ -280,7 +295,7 @@ impl PVM {
         let id = {
             if !self.cont_cache.contains_key(&ent.uuid()) {
                 let id = self._nextid();
-                let node = DataNode::new(StoreCont, ent.ty(), id, ent.uuid(), None);
+                let node = DataNode::new(StoreCont, ent.ty(), id, ent.uuid(), ID::new(0), None);
                 self.cont_cache.insert(ent.uuid(), id);
                 self.db.create_node(&node);
                 self.node_cache.insert(id, node);
@@ -306,7 +321,7 @@ impl PVM {
     pub fn unname(&mut self, obj: &DataNode, name: Name) -> RelGuard {
         let mut rel = self.name(obj, name);
         if let Rel::Named(ref mut n_rel) = *rel {
-            n_rel.end = self.cur_time;
+            n_rel.end = self.ctx();
             self.db.update_rel(&*rel);
         }
         rel
@@ -316,8 +331,7 @@ impl PVM {
         if !ent.ty().props.contains_key(key) {
             panic!("Setting unknown property on concrete type: {:?} does not have a property named {}.", ent.ty(), key);
         }
-        ent.meta
-            .update(key, val, &self.cur_time, ent.ty().props[key]);
+        ent.meta.update(key, val, self.ctx(), ent.ty().props[key]);
         self.db.update_node(ent);
     }
 

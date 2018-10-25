@@ -10,7 +10,7 @@ use neo4j::Value;
 use serde_json;
 
 use data::{
-    node_types::{NameNode, Node, PVMDataType, PVMDataType::*},
+    node_types::{NameNode, Node, PVMDataType, PVMDataType::*, SchemaNode},
     rel_types::{PVMOps, Rel},
     HasDst, HasID, HasSrc, MetaStore, ID,
 };
@@ -117,10 +117,12 @@ impl ToDBNode for Node {
                 Actor => vec!["Node", "Actor"],
                 Conduit => vec!["Node", "Conduit"],
             },
+            Node::Ctx(_) => vec!["Node", "Context"],
             Node::Name(n) => match n {
                 NameNode::Path(..) => vec!["Node", "Name", "Path"],
                 NameNode::Net(..) => vec!["Node", "Name", "Net"],
             },
+            Node::Schema(_) => vec!["Node", "Schema"],
         }
     }
 
@@ -130,6 +132,16 @@ impl ToDBNode for Node {
                 let mut props = into_props(&d.meta);
                 props.insert("uuid".into(), d.uuid().into_val());
                 props.insert("type".into(), d.ty().name.into());
+                props.insert("ctx".into(), d.ctx().into_val());
+                props
+            }
+            Node::Ctx(c) => {
+                let mut props: HashMap<Cow<'static, str>, Value> = c
+                    .cont
+                    .iter()
+                    .map(|(k, v)| (k.to_string().into(), Value::from(v as &str)))
+                    .collect();
+                props.insert("type".into(), c.ty().name.into());
                 props
             }
             Node::Name(n) => match n {
@@ -138,6 +150,17 @@ impl ToDBNode for Node {
                     hashmap!("addr".into() => Value::from(addr.clone()),
                                                          "port".into() => Value::from(*port))
                 }
+            },
+            Node::Schema(s) => match s {
+                SchemaNode::Data(_, ty) => {
+                    let props: Vec<&str> = ty.props.keys().map(|v| *v).collect();
+                    hashmap!("name".into() => Value::from(ty.name),
+                             "base".into() => ty.pvm_ty.into_val(),
+                             "props".into() => Value::from(props))
+                }
+                SchemaNode::Context(_, ty) => hashmap!("name".into() => Value::from(ty.name),
+                             "base".into() => Value::from("Context"),
+                             "props".into() => Value::from(ty.props.clone())),
             },
         }
     }
@@ -153,7 +176,7 @@ impl ToDBRel for Rel {
             Rel::Inf(i) => {
                 let props: HashMap<&str, Value> = hashmap!("db_id" => i.get_db_id().into_val(),
                                                            "pvm_op" => i.pvm_op.into_val(),
-                                                           "generating_call" => Value::from(i.generating_call.clone()),
+                                                           "ctx" => i.ctx.into_val(),
                                                            "byte_count" => Value::from(i.byte_count));
                 (
                     i.get_db_id(),
@@ -166,8 +189,8 @@ impl ToDBRel for Rel {
             }
             Rel::Named(n) => {
                 let props: HashMap<&str, Value> = hashmap!("db_id" => n.get_db_id().into_val(),
-                                                           "generating_call" => Value::from(n.generating_call.clone()),
-                                                           "start" => n.start.into_val());
+                                                           "start" => n.start.into_val(),
+                                                           "end" => n.end.into_val());
                 (
                     n.get_db_id(),
                     hashmap!("src" => n.get_src().into_val(),

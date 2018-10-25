@@ -12,7 +12,7 @@ use zip::{write::FileOptions, ZipWriter};
 
 use cfg::Config;
 use data::{
-    node_types::{ConcreteType, NameNode, Node, PVMDataType::*},
+    node_types::{NameNode, Node, PVMDataType::*, SchemaNode},
     rel_types::Rel,
     HasDst, HasID, HasSrc, ID,
 };
@@ -41,7 +41,7 @@ echo -n "Building indexes..."
 cypher-shell -u$NEO4J_USER -p$NEO4J_PASS >/dev/null <<EOF
 CREATE INDEX ON :Node(db_id);
 CREATE INDEX ON :Actor(uuid);
-CREATE INDEX ON :Object(uuid)
+CREATE INDEX ON :Object(uuid);
 CREATE INDEX ON :Store(uuid);
 CREATE INDEX ON :EditSession(uuid);
 CREATE INDEX ON :Conduit(uuid);
@@ -95,10 +95,6 @@ impl View for CSVView {
 
             let mut nodes: HashMap<Cow<'static, str>, HashMap<ID, Node>> = HashMap::new();
             let mut rels: HashMap<Cow<'static, str>, HashMap<ID, Rel>> = HashMap::new();
-            let mut node_ty: HashMap<&'static ConcreteType, Vec<&str>> = HashMap::new();
-
-            out.start_file("db/types.csv", FileOptions::default()).unwrap();
-            writeln!(out, ":LABEL,name,abstract,props:string[]").unwrap();
 
             for evt in stream {
                 match *evt {
@@ -113,30 +109,19 @@ impl View for CSVView {
                             .or_insert_with(HashMap::new)
                             .insert(rel.get_db_id(), rel.clone());
                     }
-                    DBTr::NewNodeType(ref ty) => {
-                        let mut param_list: Vec<&str> = ty.props.keys().map(|v| *v).collect();
-                        param_list.sort();
-                        writeln!(
-                            out,
-                            "Type,{},{},{}",
-                            ty.name,
-                            ty.pvm_ty,
-                            param_list.join(";")
-                        ).unwrap();
-                        node_ty.insert(ty, param_list);
-                    }
                 }
             }
 
-            out.start_file("db/hydrate.sh", FileOptions::default().unix_permissions(0o755))
-                .unwrap();
+            out.start_file(
+                "db/hydrate.sh",
+                FileOptions::default().unix_permissions(0o755),
+            ).unwrap();
             {
                 write!(out, "{}", HYDRATE_SH_PRE).unwrap();
                 let mut options = vec![
                     "--id-type=INTEGER".to_string(),
                     "--multiline-fields=true".to_string(),
                     "--nodes dbinfo.csv".to_string(),
-                    "--nodes types.csv".to_string(),
                 ];
                 options.extend(nodes.keys().map(|k| format!("--nodes {}", k)));
                 options.extend(rels.keys().map(|k| format!("--relationships {}", k)));
@@ -145,15 +130,16 @@ impl View for CSVView {
             }
 
             for (fname, rlist) in rels {
-                out.start_file(format!("db/{}", fname), FileOptions::default()).unwrap();
+                out.start_file(format!("db/{}", fname), FileOptions::default())
+                    .unwrap();
                 for (i, r) in rlist.values().enumerate() {
                     if i == 0 {
                         write!(out, "db_id,:START_ID,:END_ID,:TYPE").unwrap();
                         match r {
                             Rel::Inf(_) => {
-                                writeln!(out, ",pvm_op,generating_call,byte_count:long").unwrap()
+                                writeln!(out, ",pvm_op,ctx:long,byte_count:long").unwrap()
                             }
-                            Rel::Named(_) => writeln!(out, ",start:long,generating_call").unwrap(),
+                            Rel::Named(_) => writeln!(out, ",start:long,end:long").unwrap(),
                         }
                     }
                     write!(
@@ -168,27 +154,35 @@ impl View for CSVView {
                         Rel::Inf(i) => writeln!(
                             out,
                             ",{:?},\"{}\",{}",
-                            i.pvm_op, i.generating_call, i.byte_count
+                            i.pvm_op,
+                            format_id(i.ctx),
+                            i.byte_count
                         ).unwrap(),
-                        Rel::Named(n) => writeln!(
-                            out,
-                            ",{},\"{}\"",
-                            n.start.timestamp_nanos(),
-                            n.generating_call
-                        ).unwrap(),
+                        Rel::Named(n) => {
+                            writeln!(out, ",{},\"{}\"", format_id(n.start), format_id(n.end),)
+                                .unwrap()
+                        }
                     }
                 }
             }
             for (fname, nlist) in nodes {
-                out.start_file(format!("db/{}", fname), FileOptions::default()).unwrap();
+                out.start_file(format!("db/{}", fname), FileOptions::default())
+                    .unwrap();
                 for (i, n) in nlist.values().enumerate() {
                     if i == 0 {
                         write!(out, "db_id:ID,:LABEL").unwrap();
                         match n {
                             Node::Data(d) => {
                                 write!(out, ",uuid,ty,meta_hist").unwrap();
-                                for k in &node_ty[d.ty()] {
+                                for k in d.ty().props.keys() {
                                     write!(out, ",{}", k).unwrap();
+                                }
+                                writeln!(out).unwrap();
+                            }
+                            Node::Ctx(c) => {
+                                write!(out, ",ty").unwrap();
+                                for f in &c.ty().props {
+                                    write!(out, ",{}", f).unwrap();
                                 }
                                 writeln!(out).unwrap();
                             }
@@ -196,6 +190,7 @@ impl View for CSVView {
                                 NameNode::Path(..) => writeln!(out, ",path").unwrap(),
                                 NameNode::Net(..) => writeln!(out, ",addr,port:int").unwrap(),
                             },
+                            Node::Schema(_) => writeln!(out, ",name,base,props:string[]").unwrap(),
                         }
                     }
                     write!(out, "{},{}", format_id(n.get_db_id()), n._lab()).unwrap();
@@ -203,13 +198,20 @@ impl View for CSVView {
                         Node::Data(d) => {
                             write!(out, ",{},{}", d.uuid(), d.ty().name).unwrap();
                             write_str(&mut out, &serde_json::to_string(&d.meta).unwrap());
-                            for k in &node_ty[d.ty()] {
+                            for k in d.ty().props.keys() {
                                 let val = d.meta.cur(k);
                                 match val {
                                     Some(v) => write_str(&mut out, v),
                                     None => write!(out, ",").unwrap(),
                                 }
                             }
+                        }
+                        Node::Ctx(c) => {
+                            write!(out, ",{}", c.ty().name).unwrap();
+                            for f in &c.ty().props {
+                                write!(out, ",{}", c.cont[f]).unwrap();
+                            }
+                            writeln!(out).unwrap();
                         }
                         Node::Name(n) => match n {
                             NameNode::Path(_, path) => {
@@ -218,6 +220,17 @@ impl View for CSVView {
                             NameNode::Net(_, addr, port) => {
                                 write_str(&mut out, addr);
                                 write!(out, ",{}", port).unwrap();
+                            }
+                        },
+                        Node::Schema(s) => match s {
+                            SchemaNode::Data(_, ty) => {
+                                write_str(&mut out, ty.name);
+                                let v: Vec<&str> = ty.props.keys().map(|v| *v).collect();
+                                write!(out, ",{},{}", ty.pvm_ty, v.join(";")).unwrap();
+                            }
+                            SchemaNode::Context(_, ty) => {
+                                write_str(&mut out, ty.name);
+                                write!(out, ",Context,{}", ty.props.join(";")).unwrap();
                             }
                         },
                     }
@@ -258,10 +271,12 @@ impl ToCSV for Node {
                 EditSession => format!("es_{}.csv", d.ty().name),
                 StoreCont => format!("cont_{}.csv", d.ty().name),
             }.into(),
+            Node::Ctx(n) => format!("ctx_{}.csv", n.ty().name).into(),
             Node::Name(n) => match n {
                 NameNode::Path(..) => "paths.csv",
                 NameNode::Net(..) => "net.csv",
             }.into(),
+            Node::Schema(_) => "schema.csv".into(),
         }
     }
 
@@ -274,10 +289,12 @@ impl ToCSV for Node {
                 EditSession => "Node;EditSession",
                 Conduit => "Node;Conduit",
             },
+            Node::Ctx(_) => "Node;Context",
             Node::Name(n) => match n {
                 NameNode::Path(..) => "Node;Name;Path",
                 NameNode::Net(..) => "Node;Name;Net",
             },
+            Node::Schema(_) => "Node;Schema",
         }
     }
 }

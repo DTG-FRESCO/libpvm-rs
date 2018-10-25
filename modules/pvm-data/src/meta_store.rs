@@ -1,51 +1,55 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use chrono::{DateTime, Utc};
+use super::{node_types::ConcreteType, ID};
 
-type MetaEntry = (String, u8);
+type MetaEntry = (String, ID);
 
 type MetaType = (bool, Vec<MetaEntry>);
 
 #[derive(Clone, Deserialize, Debug, Default, Serialize)]
 pub struct MetaStore {
     entries: HashMap<Cow<'static, str>, MetaType>,
-    time_list: Vec<DateTime<Utc>>,
 }
 
 impl MetaStore {
     pub fn new() -> Self {
         MetaStore {
             entries: HashMap::new(),
-            time_list: Vec::new(),
         }
     }
 
-    pub fn snapshot(&self, time: &DateTime<Utc>) -> Self {
+    pub fn from_map(
+        src: HashMap<&'static str, String>,
+        ctx: ID,
+        ty: &'static ConcreteType,
+    ) -> Self {
+        MetaStore {
+            entries: src
+                .into_iter()
+                .map(|(k, v)| (k.into(), (ty.props[k], vec![(v, ctx)])))
+                .collect(),
+        }
+    }
+
+    pub fn snapshot(&self, ctx: ID) -> Self {
         let entries: HashMap<Cow<'static, str>, MetaType> = self
             .entries
             .iter()
             .filter_map(|(n, (h, v))| {
                 if *h {
                     let (v_last, _) = v.last().unwrap();
-                    Some((n.clone(), (true, vec![(v_last.clone(), 0)])))
+                    Some((n.clone(), (true, vec![(v_last.clone(), ctx)])))
                 } else {
                     None
                 }
             })
             .collect();
-        let time_list = {
-            if !entries.is_empty() {
-                vec![*time]
-            } else {
-                vec![]
-            }
-        };
-        MetaStore { entries, time_list }
+        MetaStore { entries }
     }
 
     pub fn merge(&mut self, other: &MetaStore) {
         for (k, v, t, h) in other.iter() {
-            self.update(k.to_string(), v, t, *h);
+            self.update(k.to_string(), v, t, h);
         }
     }
 
@@ -53,7 +57,7 @@ impl MetaStore {
         &mut self,
         key: K,
         val: &T,
-        time: &DateTime<Utc>,
+        ctx: ID,
         heritable: bool,
     ) {
         let cow_key = key.into();
@@ -63,16 +67,7 @@ impl MetaStore {
                 return;
             }
         }
-        let t_off = {
-            match self.time_list.iter().position(|v| v == time) {
-                Some(v) => v as u8,
-                None => {
-                    self.time_list.push(*time);
-                    (self.time_list.len() - 1) as u8
-                }
-            }
-        };
-        let entry = (str_val, t_off);
+        let entry = (str_val, ctx);
         self.entries
             .entry(cow_key)
             .or_insert((heritable, Vec::new()))
@@ -87,19 +82,16 @@ impl MetaStore {
             .map(|(v, _t)| &v[..])
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &str, &DateTime<Utc>, &bool)> {
-        let tlist = &self.time_list;
-        self.entries.iter().flat_map(move |(k, (h, v))| {
-            v.iter()
-                .map(move |(s, t_off)| (&k[..], &s[..], &tlist[*t_off as usize], h))
-        })
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str, ID, bool)> {
+        self.entries
+            .iter()
+            .flat_map(move |(k, (h, v))| v.iter().map(move |(s, ctx)| (&k[..], &s[..], *ctx, *h)))
     }
 
-    pub fn iter_latest(&self) -> impl Iterator<Item = (&str, &str, &DateTime<Utc>, &bool)> {
-        let tlist = &self.time_list;
+    pub fn iter_latest(&self) -> impl Iterator<Item = (&str, &str, ID, bool)> {
         self.entries.iter().map(move |(k, (h, v))| {
-            let (s, t_off) = v.last().unwrap();
-            (&k[..], &s[..], &tlist[*t_off as usize], h)
+            let (s, ctx) = v.last().unwrap();
+            (&k[..], &s[..], *ctx, *h)
         })
     }
 }

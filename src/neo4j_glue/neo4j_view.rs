@@ -9,7 +9,7 @@ use std::{
 use data::ID;
 
 use cfg::Config;
-use neo4j_glue::{IntoVal, ToDBNode, ToDBRel};
+use neo4j_glue::{ToDBNode, ToDBRel};
 use views::{DBTr, View, ViewInst};
 
 const BATCH_SIZE: usize = 1000;
@@ -117,16 +117,6 @@ impl View for Neo4JView {
                                 rel_up_rel += 1;
                             }
                         }
-                    }
-                    DBTr::NewNodeType(ty) => {
-                        let mut ty_props: Vec<&str> = ty.props.keys().map(|v| *v).collect();
-                        ty_props.sort();
-                        let props = hashmap!{"name"     => Value::from(ty.name),
-                        "abstract" => ty.pvm_ty.into_val(),
-                        "props"    => Value::from(ty_props)};
-                        let node = hashmap!{"labels" => Value::from(vec!("Type")),
-                        "props"  => Value::from(props)};
-                        nodes._execute(&mut tr, vec![node].into());
                     }
                 }
                 if ups > (btc + 1) * BATCH_SIZE {

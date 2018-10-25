@@ -2,10 +2,7 @@ use chrono::{serde::ts_nanoseconds, DateTime, Utc};
 use std::fmt;
 use uuid::Uuid;
 
-use data::{
-    node_types::{ConcreteType, Name, PVMDataType::*},
-    MetaStore,
-};
+use data::node_types::{ConcreteType, ContextType, Name, PVMDataType::*};
 
 use ingest::{
     pvm::{ConnectDir, NodeGuard, PVMError, PVM},
@@ -51,6 +48,10 @@ lazy_static! {
         props: hashmap!("owner_uid" => true,
                         "owner_gid" => true,
                         "mode" => true),
+    };
+    static ref CTX: ContextType = ContextType {
+        name: "cadets_context",
+        props: vec!["time", "event", "host"],
     };
 }
 
@@ -193,7 +194,7 @@ impl AuditEvent {
 
         let mut ch = pvm.declare(&PROCESS, ret_objuuid1, None);
 
-        ch.meta.merge(&pro.meta.snapshot(&self.time));
+        ch.meta.merge(&pro.meta.snapshot(pvm.ctx()));
         pvm.meta(&mut ch, "pid", &self.retval);
         pvm.source(&ch, pro);
         Ok(())
@@ -547,12 +548,20 @@ impl AuditEvent {
     }
 
     fn parse(&self, pvm: &mut PVM) -> Result<(), PVMError> {
-        pvm.set_evt(self.event.clone());
-        pvm.set_time(self.time);
-        let mut m = MetaStore::new();
-        m.update("cmdline", &self.exec, &self.time, true);
-        m.update("pid", &self.pid, &self.time, false);
-        let mut pro = pvm.declare(&PROCESS, self.subjprocuuid, Some(m));
+        pvm.new_ctx(
+            &CTX,
+            hashmap!(
+                "event" => self.event.clone(),
+                "host" => self.host.unwrap().hyphenated().to_string(),
+                "time" => self.time.to_rfc3339(),
+            ),
+        );
+        let mut pro = pvm.declare(
+            &PROCESS,
+            self.subjprocuuid,
+            Some(hashmap!("cmdline" => self.exec.clone(),
+                         "pid" => self.pid.to_string())),
+        );
         match &self.event[..] {
             "audit:event:aue_accept:" => self.posix_accept(&pro, pvm),
             "audit:event:aue_bind:" => self.posix_bind(&pro, pvm),
@@ -663,11 +672,12 @@ impl fmt::Display for TraceEvent {
 
 impl Parseable for TraceEvent {
     fn init(pvm: &mut PVM) {
-        pvm.new_concrete(&PROCESS);
-        pvm.new_concrete(&FILE);
-        pvm.new_concrete(&SOCKET);
-        pvm.new_concrete(&PIPE);
-        pvm.new_concrete(&PTTY);
+        pvm.register_data_type(&PROCESS);
+        pvm.register_data_type(&FILE);
+        pvm.register_data_type(&SOCKET);
+        pvm.register_data_type(&PIPE);
+        pvm.register_data_type(&PTTY);
+        pvm.register_ctx_type(&CTX);
     }
 
     fn parse(&self, pvm: &mut PVM) -> Result<(), PVMError> {
