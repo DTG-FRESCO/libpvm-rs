@@ -48,8 +48,8 @@ impl MetaStore {
     }
 
     pub fn merge(&mut self, other: &MetaStore) {
-        for (k, v, t, h) in other.iter() {
-            self.update(k.to_string(), v, t, h);
+        for (key, val, ctx, heritable) in other.iter() {
+            self.update(key.to_string(), val, ctx, heritable);
         }
     }
 

@@ -146,7 +146,7 @@ impl fmt::Display for PVMDataType {
 }
 
 impl PVMDataType {
-    pub fn compatable_concrete(self, ty: &ConcreteType) -> bool {
+    pub fn compatible_concrete(self, ty: &ConcreteType) -> bool {
         ty.pvm_ty == self
             || (self == PVMDataType::EditSession && ty.pvm_ty == PVMDataType::Store)
             || (self == PVMDataType::StoreCont && ty.pvm_ty == PVMDataType::Store)
@@ -178,7 +178,7 @@ impl DataNode {
         ctx: ID,
         meta: Option<MetaStore>,
     ) -> DataNode {
-        if !pvm_type.compatable_concrete(ty) {
+        if !pvm_type.compatible_concrete(ty) {
             panic!(
                 "Invalid PVMDataType for given ConcreteType: {:?} cannot be a {:?}.",
                 ty.name, pvm_type
