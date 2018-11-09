@@ -44,6 +44,23 @@ impl Display for PVMError {
 
 pub type PVMResult<T> = Result<T, PVMError>;
 
+#[derive(Debug)]
+pub struct IDCounter {
+    store: AtomicUsize,
+}
+
+impl IDCounter {
+    pub fn new(init: usize) -> Self {
+        IDCounter {
+            store: AtomicUsize::new(init),
+        }
+    }
+
+    pub fn get(&self) -> ID {
+        ID::new(self.store.fetch_add(1, Ordering::Relaxed) as u64)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectDir {
     Mono,
@@ -63,7 +80,7 @@ pub struct PVM {
     node_cache: LendingLibrary<ID, DataNode>,
     rel_src_dst_cache: HashMap<(&'static str, ID, ID), ID>,
     rel_cache: LendingLibrary<ID, Rel>,
-    id_counter: AtomicUsize,
+    id: IDCounter,
     open_cache: HashMap<Uuid, HashSet<Uuid>>,
     name_cache: LendingLibrary<Name, NameNode>,
     cur_ctx: CtxStore,
@@ -80,7 +97,7 @@ impl PVM {
             node_cache: LendingLibrary::new(),
             rel_src_dst_cache: HashMap::new(),
             rel_cache: LendingLibrary::new(),
-            id_counter: AtomicUsize::new(1),
+            id: IDCounter::new(1),
             open_cache: HashMap::new(),
             name_cache: LendingLibrary::new(),
             cur_ctx: CtxStore::Node(ID::new(0)),
@@ -100,7 +117,7 @@ impl PVM {
         match self.cur_ctx {
             CtxStore::Node(i) => i,
             CtxStore::Lazy(..) => {
-                let id = self._nextid();
+                let id = self.id.get();
                 let (ty, cont) = match mem::replace(&mut self.cur_ctx, CtxStore::Node(id)) {
                     CtxStore::Lazy(ty, c) => (ty, c),
                     CtxStore::Node(_) => unreachable!(),
@@ -115,10 +132,6 @@ impl PVM {
         if let Some(nid) = self.uuid_cache.remove(uuid) {
             self.node_cache.remove(&nid);
         }
-    }
-
-    fn _nextid(&mut self) -> ID {
-        ID::new(self.id_counter.fetch_add(1, Ordering::Relaxed) as u64)
     }
 
     fn _node(&mut self, id: ID) -> Loan<ID, DataNode> {
@@ -139,7 +152,7 @@ impl PVM {
         if self.rel_src_dst_cache.contains_key(&triple) {
             self.rel_src_dst_cache[&triple]
         } else {
-            let id = self._nextid();
+            let id = self.id.get();
             let rel = T::new(id, src, dst, init(self.ctx())).enumerate();
             self.db.create_rel(&rel);
             self.rel_src_dst_cache.insert(triple, id);
@@ -165,14 +178,12 @@ impl PVM {
 
     pub fn register_data_type(&mut self, ty: &'static ConcreteType) {
         self.type_cache.insert(ty);
-        let id = self._nextid();
-        self.db.create_node(SchemaNode::from_data(id, ty));
+        self.db.create_node(SchemaNode::from_data(self.id.get(), ty));
     }
 
     pub fn register_ctx_type(&mut self, ty: &'static ContextType) {
         self.ctx_type_cache.insert(ty);
-        let id = self._nextid();
-        self.db.create_node(SchemaNode::from_ctx(id, ty));
+        self.db.create_node(SchemaNode::from_ctx(self.id.get(), ty));
     }
 
     pub fn add(
@@ -185,7 +196,7 @@ impl PVM {
         if !self.type_cache.contains(&ty) {
             return Err(PVMError::AssertionFailure {cont: format!("Unregistered node type {:?}", ty)});
         }
-        let id = self._nextid();
+        let id = self.id.get();
         let node = DataNode::new(pvm_ty, ty, id, uuid, self.ctx(), init);
         if let Some(nid) = self.uuid_cache.insert(uuid, id) {
             self.node_cache.remove(&nid);
@@ -331,7 +342,7 @@ impl PVM {
 
     fn decl_name(&mut self, name: Name) -> Loan<Name, NameNode> {
         if !self.name_cache.contains_key(&name) {
-            let n = NameNode::generate(self._nextid(), name.clone());
+            let n = NameNode::generate(self.id.get(), name.clone());
             self.db.create_node(&n);
             self.name_cache.insert(name.clone(), n);
         }
