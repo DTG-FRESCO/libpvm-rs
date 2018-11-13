@@ -4,11 +4,11 @@ use uuid::Uuid;
 
 use data::{
     node_types::{ConcreteType, ContextType, Name, PVMDataType::*},
-    ID
+    ID,
 };
 
 use ingest::{
-    pvm::{ConnectDir, PVMError, PVMResult, PVM},
+    pvm::{ConnectDir, PVMError, PVMResult, PVMTransaction, PVM},
     Parseable,
 };
 
@@ -173,7 +173,7 @@ impl AuditEvent {
         }
     }
 
-    fn posix_exec(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_exec(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let cmdline = ref_field!(self.cmdline);
         let binuuid = field!(self.arg_objuuid1);
         let binname = clone_field!(self.upath1);
@@ -196,7 +196,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_fork(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_fork(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let ret_objuuid1 = field!(self.ret_objuuid1);
 
         let ch = pvm.derive(pro, ret_objuuid1)?;
@@ -206,12 +206,12 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_exit(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_exit(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         pvm.release(&self.subjprocuuid);
         Ok(())
     }
 
-    fn posix_open(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_open(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         if let Some(fuuid) = self.ret_objuuid1 {
             let fname = clone_field!(self.upath1);
 
@@ -221,7 +221,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_read(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_read(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
 
         let f = pvm.declare(&FILE, fuuid, None)?;
@@ -234,7 +234,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_write(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_write(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
 
         let f = pvm.declare(&FILE, fuuid, None)?;
@@ -247,7 +247,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_close(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_close(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         if let Some(fuuid) = self.arg_objuuid1 {
             let f = pvm.declare(&FILE, fuuid, None)?;
             pvm.sinkend(pro, f)?;
@@ -255,26 +255,26 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_socket(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_socket(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.ret_objuuid1);
         pvm.declare(&SOCKET, suuid, None)?;
         Ok(())
     }
 
-    fn posix_listen(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_listen(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
         pvm.declare(&SOCKET, suuid, None)?;
         Ok(())
     }
 
-    fn posix_bind(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_bind(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
         let s = pvm.declare(&SOCKET, suuid, None)?;
         pvm.name(s, self.sock_name()?)?;
         Ok(())
     }
 
-    fn posix_accept(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_accept(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let luuid = field!(self.arg_objuuid1);
         let ruuid = field!(self.ret_objuuid1);
         pvm.declare(&SOCKET, luuid, None)?;
@@ -283,14 +283,14 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_connect(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_connect(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
         let s = pvm.declare(&SOCKET, suuid, None)?;
         pvm.name(s, self.sock_name()?)?;
         Ok(())
     }
 
-    fn posix_mmap(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_mmap(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let f = pvm.declare(&FILE, fuuid, None)?;
         if let Some(fdpath) = self.fdpath.clone() {
@@ -314,7 +314,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_socketpair(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_socketpair(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let ruuid1 = field!(self.ret_objuuid1);
         let ruuid2 = field!(self.ret_objuuid2);
         let s1 = pvm.declare(&SOCKET, ruuid1, None)?;
@@ -323,7 +323,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_pipe(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_pipe(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let ruuid1 = field!(self.ret_objuuid1);
         let ruuid2 = field!(self.ret_objuuid2);
         let p1 = pvm.declare(&PIPE, ruuid1, None)?;
@@ -332,7 +332,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_sendmsg(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_sendmsg(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
         let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
@@ -342,7 +342,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_sendto(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_sendto(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
         let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
@@ -352,7 +352,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_recvmsg(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_recvmsg(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
         let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
@@ -362,7 +362,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_recvfrom(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_recvfrom(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
         let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
@@ -372,7 +372,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_chdir(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_chdir(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let duuid = field!(self.arg_objuuid1);
         let d = pvm.declare(&FILE, duuid, None)?;
         if let Some(dpath) = self.upath1.clone() {
@@ -381,7 +381,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_chmod(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_chmod(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let fpath = clone_field!(self.upath1);
         let mode = field!(self.mode);
@@ -392,7 +392,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_chown(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_chown(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let fpath = clone_field!(self.upath1);
         let arg_uid = field!(self.arg_uid);
@@ -405,7 +405,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_fchmod(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_fchmod(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let mode = field!(self.mode);
         let f = pvm.declare(&FILE, fuuid, None)?;
@@ -414,7 +414,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_fchown(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_fchown(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let arg_uid = field!(self.arg_uid);
         let arg_gid = field!(self.arg_gid);
@@ -425,13 +425,13 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_posix_openpt(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_posix_openpt(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let ttyuuid = field!(self.ret_objuuid1);
         pvm.declare(&PTTY, ttyuuid, None)?;
         Ok(())
     }
 
-    fn posix_link(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_link(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let upath1 = clone_field!(self.upath1);
         let upath2 = clone_field!(self.upath2);
@@ -441,7 +441,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_rename(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_rename(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let src_uuid = field!(self.arg_objuuid1);
         let src = clone_field!(self.upath1);
         let dst = clone_field!(self.upath2);
@@ -455,7 +455,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_unlink(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_unlink(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let upath1 = clone_field!(self.upath1);
         let f = pvm.declare(&FILE, fuuid, None)?;
@@ -463,7 +463,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_setuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let uid = ref_field!(self.arg_uid);
         pvm.meta(pro, "euid", uid)?;
         pvm.meta(pro, "ruid", uid)?;
@@ -471,13 +471,13 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_seteuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_seteuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let euid = ref_field!(self.arg_euid);
         pvm.meta(pro, "euid", euid)?;
         Ok(())
     }
 
-    fn posix_setreuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setreuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let ruid = ref_field!(self.arg_ruid);
         let euid = ref_field!(self.arg_euid);
         if *ruid != -1 {
@@ -489,7 +489,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_setresuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setresuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let ruid = ref_field!(self.arg_ruid);
         let euid = ref_field!(self.arg_euid);
         let suid = ref_field!(self.arg_suid);
@@ -505,7 +505,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_setgid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setgid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let gid = ref_field!(self.arg_gid);
         pvm.meta(pro, "egid", gid)?;
         pvm.meta(pro, "rgid", gid)?;
@@ -513,13 +513,13 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_setegid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setegid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let egid = ref_field!(self.arg_egid);
         pvm.meta(pro, "egid", egid)?;
         Ok(())
     }
 
-    fn posix_setregid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setregid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let rgid = ref_field!(self.arg_rgid);
         let egid = ref_field!(self.arg_egid);
         if *rgid != -1 {
@@ -531,7 +531,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_setresgid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setresgid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let rgid = ref_field!(self.arg_rgid);
         let egid = ref_field!(self.arg_egid);
         let sgid = ref_field!(self.arg_sgid);
@@ -547,7 +547,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn posix_setlogin(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
+    fn posix_setlogin(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let login = ref_field!(self.login);
         pvm.meta(pro, "login_name", login)?;
         Ok(())
@@ -555,68 +555,83 @@ impl AuditEvent {
 
     fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
         let mut ctx = hashmap!(
-                "event" => self.event.clone(),
-                "host" => self.host.unwrap().hyphenated().to_string(),
-                "time" => self.time.to_rfc3339(),
-            );
+            "event" => self.event.clone(),
+            "host" => self.host.unwrap().hyphenated().to_string(),
+            "time" => self.time.to_rfc3339(),
+        );
         if let Some(offset) = self.offset {
             ctx.insert("trace_offset", offset.to_string());
         }
-        pvm.new_ctx(&CTX, ctx)?;
-        let pro = pvm.declare(
-            &PROCESS,
-            self.subjprocuuid,
-            Some(hashmap!("cmdline" => self.exec.clone(),
+        let mut tr = pvm.transaction(&CTX, ctx);
+        match {
+            let pro = tr.declare(
+                &PROCESS,
+                self.subjprocuuid,
+                Some(hashmap!("cmdline" => self.exec.clone(),
                          "pid" => self.pid.to_string())),
-        )?;
-        match &self.event[..] {
-            "audit:event:aue_accept:" => self.posix_accept(pro, pvm),
-            "audit:event:aue_bind:" => self.posix_bind(pro, pvm),
-            "audit:event:aue_chdir:" | "audit:event:aue_fchdir:" => self.posix_chdir(pro, pvm),
-            "audit:event:aue_chmod:" | "audit:event:aue_fchmodat:" => self.posix_chmod(pro, pvm),
-            "audit:event:aue_chown:" => self.posix_chown(pro, pvm),
-            "audit:event:aue_close:" => self.posix_close(pro, pvm),
-            "audit:event:aue_connect:" => self.posix_connect(pro, pvm),
-            "audit:event:aue_execve:" => self.posix_exec(pro, pvm),
-            "audit:event:aue_exit:" => self.posix_exit(pro, pvm),
-            "audit:event:aue_fork:" | "audit:event:aue_pdfork:" | "audit:event:aue_vfork:" => {
-                self.posix_fork(pro, pvm)
+            )?;
+            match &self.event[..] {
+                "audit:event:aue_accept:" => self.posix_accept(pro, &mut tr),
+                "audit:event:aue_bind:" => self.posix_bind(pro, &mut tr),
+                "audit:event:aue_chdir:" | "audit:event:aue_fchdir:" => {
+                    self.posix_chdir(pro, &mut tr)
+                }
+                "audit:event:aue_chmod:" | "audit:event:aue_fchmodat:" => {
+                    self.posix_chmod(pro, &mut tr)
+                }
+                "audit:event:aue_chown:" => self.posix_chown(pro, &mut tr),
+                "audit:event:aue_close:" => self.posix_close(pro, &mut tr),
+                "audit:event:aue_connect:" => self.posix_connect(pro, &mut tr),
+                "audit:event:aue_execve:" => self.posix_exec(pro, &mut tr),
+                "audit:event:aue_exit:" => self.posix_exit(pro, &mut tr),
+                "audit:event:aue_fork:" | "audit:event:aue_pdfork:" | "audit:event:aue_vfork:" => {
+                    self.posix_fork(pro, &mut tr)
+                }
+                "audit:event:aue_fchmod:" => self.posix_fchmod(pro, &mut tr),
+                "audit:event:aue_fchown:" => self.posix_fchown(pro, &mut tr),
+                "audit:event:aue_link:" => self.posix_link(pro, &mut tr),
+                "audit:event:aue_listen:" => self.posix_listen(pro, &mut tr),
+                "audit:event:aue_mmap:" => self.posix_mmap(pro, &mut tr),
+                "audit:event:aue_open_rwtc:" | "audit:event:aue_openat_rwtc:" => {
+                    self.posix_open(pro, &mut tr)
+                }
+                "audit:event:aue_pipe:" => self.posix_pipe(pro, &mut tr),
+                "audit:event:aue_posix_openpt:" => self.posix_posix_openpt(pro, &mut tr),
+                "audit:event:aue_read:" | "audit:event:aue_pread:" => self.posix_read(pro, &mut tr),
+                "audit:event:aue_recvmsg:" => self.posix_recvmsg(pro, &mut tr),
+                "audit:event:aue_recvfrom:" => self.posix_recvfrom(pro, &mut tr),
+                "audit:event:aue_rename:" => self.posix_rename(pro, &mut tr),
+                "audit:event:aue_sendmsg:" => self.posix_sendmsg(pro, &mut tr),
+                "audit:event:aue_sendto:" => self.posix_sendto(pro, &mut tr),
+                "audit:event:aue_setegid:" => self.posix_setegid(pro, &mut tr),
+                "audit:event:aue_seteuid:" => self.posix_seteuid(pro, &mut tr),
+                "audit:event:aue_setlogin:" => self.posix_setlogin(pro, &mut tr),
+                "audit:event:aue_setgid:" => self.posix_setgid(pro, &mut tr),
+                "audit:event:aue_setregid:" => self.posix_setregid(pro, &mut tr),
+                "audit:event:aue_setresgid:" => self.posix_setresgid(pro, &mut tr),
+                "audit:event:aue_setresuid:" => self.posix_setresuid(pro, &mut tr),
+                "audit:event:aue_setreuid:" => self.posix_setreuid(pro, &mut tr),
+                "audit:event:aue_setuid:" => self.posix_setuid(pro, &mut tr),
+                "audit:event:aue_socket:" => self.posix_socket(pro, &mut tr),
+                "audit:event:aue_socketpair:" => self.posix_socketpair(pro, &mut tr),
+                "audit:event:aue_unlink:" => self.posix_unlink(pro, &mut tr),
+                "audit:event:aue_write:"
+                | "audit:event:aue_pwrite:"
+                | "audit:event:aue_writev:" => self.posix_write(pro, &mut tr),
+                "audit:event:aue_dup2:" => Ok(()), /* IGNORE */
+                _ => {
+                    //tr.unparsed_events.insert(self.event.clone());
+                    Ok(())
+                }
             }
-            "audit:event:aue_fchmod:" => self.posix_fchmod(pro, pvm),
-            "audit:event:aue_fchown:" => self.posix_fchown(pro, pvm),
-            "audit:event:aue_link:" => self.posix_link(pro, pvm),
-            "audit:event:aue_listen:" => self.posix_listen(pro, pvm),
-            "audit:event:aue_mmap:" => self.posix_mmap(pro, pvm),
-            "audit:event:aue_open_rwtc:" | "audit:event:aue_openat_rwtc:" => {
-                self.posix_open(pro, pvm)
-            }
-            "audit:event:aue_pipe:" => self.posix_pipe(pro, pvm),
-            "audit:event:aue_posix_openpt:" => self.posix_posix_openpt(pro, pvm),
-            "audit:event:aue_read:" | "audit:event:aue_pread:" => self.posix_read(pro, pvm),
-            "audit:event:aue_recvmsg:" => self.posix_recvmsg(pro, pvm),
-            "audit:event:aue_recvfrom:" => self.posix_recvfrom(pro, pvm),
-            "audit:event:aue_rename:" => self.posix_rename(pro, pvm),
-            "audit:event:aue_sendmsg:" => self.posix_sendmsg(pro, pvm),
-            "audit:event:aue_sendto:" => self.posix_sendto(pro, pvm),
-            "audit:event:aue_setegid:" => self.posix_setegid(pro, pvm),
-            "audit:event:aue_seteuid:" => self.posix_seteuid(pro, pvm),
-            "audit:event:aue_setlogin:" => self.posix_setlogin(pro, pvm),
-            "audit:event:aue_setgid:" => self.posix_setgid(pro, pvm),
-            "audit:event:aue_setregid:" => self.posix_setregid(pro, pvm),
-            "audit:event:aue_setresgid:" => self.posix_setresgid(pro, pvm),
-            "audit:event:aue_setresuid:" => self.posix_setresuid(pro, pvm),
-            "audit:event:aue_setreuid:" => self.posix_setreuid(pro, pvm),
-            "audit:event:aue_setuid:" => self.posix_setuid(pro, pvm),
-            "audit:event:aue_socket:" => self.posix_socket(pro, pvm),
-            "audit:event:aue_socketpair:" => self.posix_socketpair(pro, pvm),
-            "audit:event:aue_unlink:" => self.posix_unlink(pro, pvm),
-            "audit:event:aue_write:" | "audit:event:aue_pwrite:" | "audit:event:aue_writev:" => {
-                self.posix_write(pro, pvm)
-            }
-            "audit:event:aue_dup2:" => Ok(()), /* IGNORE */
-            _ => {
-                pvm.unparsed_events.insert(self.event.clone());
+        } {
+            Ok(_) => {
+                tr.commit();
                 Ok(())
+            }
+            Err(e) => {
+                tr.rollback();
+                Err(e)
             }
         }
     }

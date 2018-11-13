@@ -1,3 +1,6 @@
 [submodule "modules/rusty-bolt"]
 	path = modules/rusty-bolt
 	url = https://github.com/HarkonenBade/rusty-bolt.git
+[submodule "modules/transactions-rs"]
+	path = modules/transactions-rs
+	url = https://github.com/HarkonenBade/transactions-rs.git

@@ -183,7 +183,7 @@ impl ToDBRel for Rel {
                              "dst" => i.get_dst().into_val(),
                              "type" => Value::from("INF"),
                              "props" => Value::from(props))
-                        .into(),
+                    .into(),
                 )
             }
             Rel::Named(n) => {
@@ -196,7 +196,7 @@ impl ToDBRel for Rel {
                              "dst" => n.get_dst().into_val(),
                              "type" => Value::from("NAMED"),
                              "props" => Value::from(props))
-                        .into(),
+                    .into(),
                 )
             }
         }

@@ -62,7 +62,7 @@ pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
                 Ok(mut evt) => {
                     evt.set_offset(*n);
                     (*n, Some(evt))
-                },
+                }
                 Err(perr) => {
                     eprintln!("Line: {}", n + 1);
                     eprintln!("JSON Parsing error: {}", perr);

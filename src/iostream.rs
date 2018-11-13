@@ -60,7 +60,7 @@ impl FromRawFd for UnixPipe {
 
 impl From<fs::File> for IOStream {
     fn from(f: fs::File) -> Self {
-        IOStream{ src: Box::new(f)}
+        IOStream { src: Box::new(f) }
     }
 }
 

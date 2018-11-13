@@ -115,7 +115,8 @@ impl View for CSVView {
             out.start_file(
                 "db/hydrate.sh",
                 FileOptions::default().unix_permissions(0o755),
-            ).unwrap();
+            )
+            .unwrap();
             {
                 write!(out, "{}", HYDRATE_SH_PRE).unwrap();
                 let mut options = vec![
@@ -149,7 +150,8 @@ impl View for CSVView {
                         format_id(r.get_src()),
                         format_id(r.get_dst()),
                         r._lab(),
-                    ).unwrap();
+                    )
+                    .unwrap();
                     match r {
                         Rel::Inf(i) => writeln!(
                             out,
@@ -157,7 +159,8 @@ impl View for CSVView {
                             i.pvm_op,
                             format_id(i.ctx),
                             i.byte_count
-                        ).unwrap(),
+                        )
+                        .unwrap(),
                         Rel::Named(n) => {
                             writeln!(out, ",{},\"{}\"", format_id(n.start), format_id(n.end),)
                                 .unwrap()
@@ -196,7 +199,8 @@ impl View for CSVView {
                     write!(out, "{},{}", format_id(n.get_db_id()), n._lab()).unwrap();
                     match n {
                         Node::Data(d) => {
-                            write!(out, ",{},{},{}", d.uuid(), d.ty().name, format_id(d.ctx())).unwrap();
+                            write!(out, ",{},{},{}", d.uuid(), d.ty().name, format_id(d.ctx()))
+                                .unwrap();
                             write_str(&mut out, &serde_json::to_string(&d.meta).unwrap());
                             for k in d.ty().props.keys() {
                                 let val = d.meta.cur(k);
@@ -269,12 +273,14 @@ impl ToCSV for Node {
                 Store => format!("n_store_{}.csv", d.ty().name),
                 Conduit => format!("n_conduit_{}.csv", d.ty().name),
                 EditSession => format!("n_es_{}.csv", d.ty().name),
-            }.into(),
+            }
+            .into(),
             Node::Ctx(n) => format!("n_ctx_{}.csv", n.ty().name).into(),
             Node::Name(n) => match n {
                 NameNode::Path(..) => "n_paths.csv",
                 NameNode::Net(..) => "n_net.csv",
-            }.into(),
+            }
+            .into(),
             Node::Schema(_) => "n_schema.csv".into(),
         }
     }
@@ -302,7 +308,8 @@ impl ToCSV for Rel {
         match self {
             Rel::Inf(_) => "r_inf.csv",
             Rel::Named(_) => "r_named.csv",
-        }.into()
+        }
+        .into()
     }
 
     fn _lab(&self) -> &str {

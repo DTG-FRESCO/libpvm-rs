@@ -47,7 +47,7 @@ impl HasID for ID {
     }
 }
 
-impl<T:HasID> HasID for &T {
+impl<T: HasID> HasID for &T {
     fn get_db_id(&self) -> ID {
         (*self).get_db_id()
     }

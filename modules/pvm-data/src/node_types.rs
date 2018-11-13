@@ -145,8 +145,7 @@ impl fmt::Display for PVMDataType {
 
 impl PVMDataType {
     pub fn compatible_concrete(self, ty: &ConcreteType) -> bool {
-        ty.pvm_ty == self
-            || (self == PVMDataType::EditSession && ty.pvm_ty == PVMDataType::Store)
+        ty.pvm_ty == self || (self == PVMDataType::EditSession && ty.pvm_ty == PVMDataType::Store)
     }
 }
 
@@ -208,7 +207,7 @@ impl DataNode {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Name {
     Path(String),
     Net(String, u16),

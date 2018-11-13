@@ -21,7 +21,7 @@ members = [
 ]
 
 [dependencies]
-lending-library = "0.1.*"
+lending-library = "0.2.*"
 lazy_static = "*"
 serde = "1.0"
 serde_json = "*"
@@ -38,3 +38,4 @@ neo4j = {path = "modules/rusty-bolt/neo4j" }
 pvm-cfg = { path = "modules/pvm-cfg" }
 pvm-data = { path = "modules/pvm-data" }
 pvm-views = { path = "modules/pvm-views" }
+transactions = { path = "modules/transactions-rs", features = ["lending"]}

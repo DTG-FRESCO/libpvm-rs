@@ -135,7 +135,8 @@ impl Engine {
             &self.cfg.db_server,
             &self.cfg.db_user,
             &self.cfg.db_password,
-        ).unwrap();
+        )
+        .unwrap();
         count_processes(&mut db)
     }
 }
