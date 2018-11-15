@@ -20,5 +20,8 @@ add_executable(pvm2csv src/pvm2csv.c)
 add_dependencies(copususer libpvm)
 add_dependencies(pvm2csv libpvm)
 
-target_link_libraries(copususer "${CMAKE_SOURCE_DIR}/target/release/libopus.so")
-target_link_libraries(pvm2csv "${CMAKE_SOURCE_DIR}/target/release/libopus.so")
+set(RUST_TARGET_DIR "${CMAKE_SOURCE_DIR}/target/release")
+set(LIBOPUS "${RUST_TARGET_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}opus${CMAKE_SHARED_LIBRARY_SUFFIX}")
+
+target_link_libraries(copususer ${LIBOPUS})
+target_link_libraries(pvm2csv ${LIBOPUS})
