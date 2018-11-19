@@ -28,8 +28,8 @@ echo "Configuring temporary Neo4J instance..."
 #
 function unused_port
 	set used_ports "$tmpdir/ports"
-	netstat -4 -an \
-		| awk '/[0-9]/{print $4}' \
+	netstat -an \
+		| awk '/\([0-9]\+\.\)/{print $4}' \
 		| sed 's/[0-9\.]*\.//' \
 		| sort \
 		| uniq \
