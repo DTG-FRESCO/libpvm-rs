@@ -1,0 +1,40 @@
+= PVM graph checker
+
+This utility "hydrates" the output from
+https://github.com/cadets/libpvm-rs[libpvm]
+into a temporary Neo4j database and checks its contents with user-specified
+https://neo4j.com/developer/cypher-query-language[Cypher] queries.
+
+
+== Requirements
+
+1. The https://fishshell.com[`fish` shell].
+2. The https://neo4j.com[Neo4j] graph database (test: run `neo4j-admin help`).
+3. A "dehydrated database" produced by
+   https://github.com/cadets/libpvm-rs[libpvm]
+   (e.g., using the
+   https://github.com/cadets/libpvm-rs/blob/master/src/copususer.c[`copususer`]
+   binary).
+4. wibble wibble ... some kind of test description ... wibble wibble
+
+
+== Usage
+
+Run `check-pvm-graph path/to/dehydrated/database`, then grab a cup of tea...
+
+[source, terminal]
+----
+$ ./check-pvm-graph dehydrated_db_directory
+/usr/local/bin/neo4j-admin
+Hydrating db into /tmp/neo4j.t9vXd1
+Configuring temporary Neo4J instance...
+Neo4j version: 3.3.2
+Importing the contents of these files into /tmp/[...]/graph.db:
+[...]
+Import complete, building indices...
+Starting Neo4j...
+Watching /tmp/neo4j.t9vXd1/neo4j/logs/neo4j.log for success or failure...
+2018-11-19 17:12:34.219+0000 INFO  Remote interface available at http://localhost:21235/
+Database hydrated; shutting down...
+Stopping Neo4j.. stopped
+----

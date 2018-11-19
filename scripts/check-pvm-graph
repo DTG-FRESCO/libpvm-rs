@@ -1,0 +1,158 @@
+#!/usr/bin/env fish
+
+if not which neo4j-admin
+	echo "Cannot find neo4j-admin in your current PATH ($PATH)"
+	exit 1
+end
+
+set dehydrated_db_dir $argv[1]
+if [ "$dehydrated_db_dir" = "" ]
+	echo "Usage:  run-neo4j <dehydrated DB directory>"
+	exit 1
+else if not [ -d "$dehydrated_db_dir" ]
+	echo "$dehydrated_db_dir is not a directory"
+	exit 1
+end
+
+set tmpdir (mktemp -d /tmp/neo4j.XXXXXX)
+
+echo "Hydrating $dehydrated_db_dir into $tmpdir"
+echo "Configuring temporary Neo4J instance..."
+
+
+#
+# Find an unused TCP port.
+#
+# This is racy, as we don't reserve the port, but it's better than
+# always using the same port...
+#
+function unused_port
+	set used_ports "$tmpdir/ports"
+	netstat -4 -an \
+		| awk '/[0-9]/{print $4}' \
+		| sed 's/[0-9\.]*\.//' \
+		| sort \
+		| uniq \
+		> $used_ports
+
+	while true
+		set port (random 1024 65000)
+		if grep $port $used_ports > /dev/null
+			sleep 1
+		else
+			echo $port
+			break
+		end
+	end
+end
+
+# Choose ports for Bolt and HTTP:
+set bolt_port (unused_port)
+set http_port (unused_port)
+
+#
+# Set up a Neo4j home directory structure:
+#
+mkdir $tmpdir/etc $tmpdir/neo4j
+
+set -x NEO4J_HOME $tmpdir/neo4j
+
+echo "\
+dbms.active_database=graph.db
+
+dbms.directories.data=./data
+dbms.directories.plugins=/usr/local/neo4j/lib/plugins
+dbms.directories.lib=/usr/local/neo4j/lib
+
+dbms.connector.bolt.enabled=true
+dbms.connector.bolt.listen_address=:$bolt_port
+
+dbms.connector.http.enabled=true
+dbms.connector.http.listen_address=:$http_port
+
+dbms.connector.https.enabled=false
+
+dbms.jvm.additional=-XX:+UseG1GC
+dbms.jvm.additional=-XX:-OmitStackTraceInFastThrow
+dbms.jvm.additional=-XX:+AlwaysPreTouch
+dbms.jvm.additional=-XX:+UnlockExperimentalVMOptions
+dbms.jvm.additional=-XX:+TrustFinalNonStaticFields
+dbms.jvm.additional=-XX:+DisableExplicitGC
+dbms.jvm.additional=-Dunsupported.dbms.udc.source=tarball\
+" > $tmpdir/etc/neo4j.conf
+
+set neo4j $tmpdir/neo4j
+mkdir -p $neo4j/logs $neo4j/run
+
+
+#
+# Import data into offline graph DB directory
+#
+
+# TODO: once dehydrated DBs start shipping with names like `nodes_*.csv`,
+#       use a glob rather than hardcoding filenames
+
+set nodefiles \
+	(for f in (find $dehydrated_db_dir -name '*.csv' \
+			| grep -v named.csv \
+			| grep -v inf.csv)
+		echo "--nodes=$f"
+	end)
+
+set relfiles \
+	(for f in named.csv inf.csv
+		echo "--relationships=$dehydrated_db_dir/$f"
+	end)
+
+neo4j-admin import \
+	--id-type=INTEGER --multiline-fields=true \
+	$nodefiles $relfiles \
+	> /dev/null \
+	; or exit 1
+
+echo "Import complete, building indices..."
+
+
+#
+# Start Neo4j and watch its logfile for success or failure indication
+#
+echo "Starting Neo4j..."
+set logfile (neo4j start | awk '/for current status/{ print $2 }')
+echo "Watching $logfile for success or failure..."
+
+while true
+	if grep "Remote interface available" $logfile
+		break
+	else if grep "Server shutdown" $logfile
+		exit 1
+	else
+		sleep 1
+	end
+end
+
+#
+# Build indices
+#
+if cypher-shell > /dev/null "\
+CREATE INDEX ON :Node(db_id);
+CREATE INDEX ON :Actor(uuid);
+CREATE INDEX ON :Object(uuid);
+CREATE INDEX ON :Store(uuid);
+CREATE INDEX ON :EditSession(uuid);
+CREATE INDEX ON :Conduit(uuid);
+CREATE INDEX ON :StoreCont(uuid);
+CREATE INDEX ON :Path(path);
+CREATE INDEX ON :Net(addr);
+CALL db.awaitIndexes();
+\
+"
+	echo "Database hydrated; shutting down..."
+else
+	echo "Error building database indices!"
+end
+
+#
+# Finally, shut Neo4j down and blow away the temporary directory.
+#
+neo4j stop
+rm -rf $tmpdir
