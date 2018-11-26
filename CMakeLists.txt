@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.9)
-
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -ggdb")
 add_custom_target(
     libpvm
     COMMAND cargo build --release
