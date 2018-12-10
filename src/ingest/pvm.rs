@@ -25,18 +25,24 @@ use uuid::Uuid;
 use super::db::DB;
 
 pub enum PVMError {
+    AssertionFailure { cont: String },
     MissingField { evt: String, field: &'static str },
 }
 
 impl Display for PVMError {
     fn fmt(&self, f: &mut Formatter) -> FMTResult {
         match self {
+            PVMError::AssertionFailure { cont } => {
+                write!(f, "Assertion failed, {}", cont)
+            }
             PVMError::MissingField { evt, field } => {
                 write!(f, "Event {} missing needed field {}", evt, field)
             }
         }
     }
 }
+
+pub type PVMResult<T> = Result<T, PVMError>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectDir {
@@ -82,9 +88,12 @@ impl PVM {
         }
     }
 
-    pub fn new_ctx(&mut self, ty: &'static ContextType, cont: HashMap<&'static str, String>) {
-        assert!(self.ctx_type_cache.contains(ty));
+    pub fn new_ctx(&mut self, ty: &'static ContextType, cont: HashMap<&'static str, String>) -> PVMResult<()> {
+        if !self.ctx_type_cache.contains(ty) {
+            return Err(PVMError::AssertionFailure {cont: format!("Unregistered context type {:?}", ty)});
+        }
         self.cur_ctx = CtxStore::Lazy(ty, cont);
+        Ok(())
     }
 
     pub fn ctx(&mut self) -> ID {
@@ -172,8 +181,10 @@ impl PVM {
         ty: &'static ConcreteType,
         uuid: Uuid,
         init: Option<MetaStore>,
-    ) -> ID {
-        assert!(self.type_cache.contains(&ty));
+    ) -> PVMResult<ID> {
+        if !self.type_cache.contains(&ty) {
+            return Err(PVMError::AssertionFailure {cont: format!("Unregistered node type {:?}", ty)});
+        }
         let id = self._nextid();
         let node = DataNode::new(pvm_ty, ty, id, uuid, self.ctx(), init);
         if let Some(nid) = self.uuid_cache.insert(uuid, id) {
@@ -181,7 +192,7 @@ impl PVM {
         }
         self.db.create_node(&node);
         self.node_cache.insert(id, node);
-        id
+        Ok(id)
     }
 
     pub fn declare(
@@ -189,7 +200,7 @@ impl PVM {
         ty: &'static ConcreteType,
         uuid: Uuid,
         init: Option<HashMap<&'static str, String>>,
-    ) -> ID {
+    ) -> PVMResult<ID> {
         if !self.uuid_cache.contains_key(&uuid) {
             let init = match init {
                 Some(v) => Some(MetaStore::from_map(v, self.ctx(), ty)),
@@ -197,36 +208,38 @@ impl PVM {
             };
             self.add(ty.pvm_ty, ty, uuid, init)
         } else {
-            self.uuid_cache[&uuid]
+            Ok(self.uuid_cache[&uuid])
         }
     }
 
-    fn _version(&mut self, src: &DataNode, choice: Either<Uuid, PVMDataType>) -> ID {
+    fn _version(&mut self, src: &DataNode, choice: Either<Uuid, PVMDataType>) -> PVMResult<ID> {
         let ctx = self.ctx();
         let dst = match choice {
             Either::Left(uuid) => {
-                let dst_id = self.declare(src.ty(), uuid, None);
+                let dst_id = self.declare(src.ty(), uuid, None)?;
                 let mut dst = self._node(dst_id);
                 dst.meta.merge(&src.meta.snapshot(ctx));
                 self.db.update_node(&*dst);
                 dst_id
             }
             Either::Right(pvm_ty) => {
-                self.add(pvm_ty, src.ty(), src.uuid(), Some(src.meta.snapshot(ctx)))
+                self.add(pvm_ty, src.ty(), src.uuid(), Some(src.meta.snapshot(ctx)))?
             }
         };
         self._inf(src, dst, PVMOps::Version);
-        dst
+        Ok(dst)
     }
 
-    pub fn derive(&mut self, src: ID, dst: Uuid) -> ID {
+    pub fn derive(&mut self, src: ID, dst: Uuid) -> PVMResult<ID> {
         let src = self._node(src);
         self._version(&src, Either::Left(dst))
     }
 
-    pub fn source(&mut self, act: ID, ent: ID) -> ID {
-        assert_eq!(self._node(act).pvm_ty(), &Actor);
-        self._inf(ent, act, PVMOps::Source)
+    pub fn source(&mut self, act: ID, ent: ID) -> PVMResult<ID> {
+        if self._node(act).pvm_ty() != &Actor {
+            return Err(PVMError::AssertionFailure {cont: "source with non actor".into() });
+        }
+        Ok(self._inf(ent, act, PVMOps::Source))
     }
 
     pub fn source_nbytes<T: Into<i64>>(
@@ -234,34 +247,40 @@ impl PVM {
         act: ID,
         ent: ID,
         bytes: T,
-    ) -> ID {
-        assert_eq!(self._node(act).pvm_ty(), &Actor);
-        let id = self.source(act, ent);
+    ) -> PVMResult<ID> {
+        if self._node(act).pvm_ty() != &Actor {
+            return Err(PVMError::AssertionFailure {cont: "source with non actor".into() });
+        }
+        let id = self.source(act, ent)?;
         let mut r = self._rel(id);
         Inf::denumerate_mut(&mut r).byte_count += bytes.into();
         self.db.update_rel(&*r);
-        id
+        Ok(id)
     }
 
-    pub fn sink(&mut self, act: ID, ent: ID) -> ID {
+    pub fn sink(&mut self, act: ID, ent: ID) -> PVMResult<ID> {
         let ent = self._node(ent);
-        assert_eq!(self._node(act).pvm_ty(), &Actor);
-        match ent.pvm_ty() {
+        if self._node(act).pvm_ty() != &Actor {
+            return Err(PVMError::AssertionFailure {cont: "sink with non actor".into() });
+        }
+        Ok(match ent.pvm_ty() {
             Store => {
-                let f = self._version(&ent, Either::Right(Store));
+                let f = self._version(&ent, Either::Right(Store))?;
                 self._inf(act, f, PVMOps::Sink)
             }
             _ => self._inf(act, &*ent, PVMOps::Sink),
-        }
+        })
     }
 
-    pub fn sinkstart(&mut self, act: ID, ent: ID) -> ID {
+    pub fn sinkstart(&mut self, act: ID, ent: ID) -> PVMResult<ID> {
         let act = self._node(act);
         let ent = self._node(ent);
-        assert_eq!(act.pvm_ty(), &Actor);
-        match ent.pvm_ty() {
+        if act.pvm_ty() != &Actor {
+            return Err(PVMError::AssertionFailure {cont: "sinkstart with non actor".into() });
+        }
+        Ok(match ent.pvm_ty() {
             Store => {
-                let es = self._version(&ent, Either::Right(EditSession));
+                let es = self._version(&ent, Either::Right(EditSession))?;
                 self.open_cache.insert(ent.uuid(), hashset!(act.uuid()));
                 self._inf(&*act, es, PVMOps::Sink)
             }
@@ -273,7 +292,7 @@ impl PVM {
                 self._inf(&*act, &*ent, PVMOps::Sink)
             }
             _ => self._inf(&*act, &*ent, PVMOps::Sink),
-        }
+        })
     }
 
     pub fn sinkstart_nbytes<T: Into<i64>>(
@@ -281,28 +300,33 @@ impl PVM {
         act: ID,
         ent: ID,
         bytes: T,
-    ) -> ID {
-        assert_eq!(self._node(act).pvm_ty(), &Actor);
-        let id = self.sinkstart(act, ent);
+    ) -> PVMResult<ID> {
+        if self._node(act).pvm_ty() != &Actor {
+            return Err(PVMError::AssertionFailure {cont: "sinkstart with non actor".into() });
+        }
+        let id = self.sinkstart(act, ent)?;
         let mut r = self._rel(id);
         Inf::denumerate_mut(&mut r).byte_count += bytes.into();
         self.db.update_rel(&*r);
-        id
+        Ok(id)
     }
 
-    pub fn sinkend(&mut self, act: ID, ent: ID) {
+    pub fn sinkend(&mut self, act: ID, ent: ID) -> PVMResult<()> {
         let ent = self._node(ent);
         let act = self._node(act);
-        assert_eq!(act.pvm_ty(), &Actor);
+        if act.pvm_ty() != &Actor {
+            return Err(PVMError::AssertionFailure {cont: "sinkend with non actor".into() });
+        }
         if let EditSession = ent.pvm_ty() {
             self.open_cache
                 .get_mut(&ent.uuid())
                 .unwrap()
                 .remove(&act.uuid());
             if self.open_cache[&ent.uuid()].is_empty() {
-                self._version(&ent, Either::Right(Store));
+                self._version(&ent, Either::Right(Store))?;
             }
         }
+        Ok(())
     }
 
     fn decl_name(&mut self, name: Name) -> Loan<Name, NameNode> {
@@ -314,22 +338,22 @@ impl PVM {
         self.name_cache.lend(&name).unwrap()
     }
 
-    pub fn name(&mut self, obj: ID, name: Name) -> ID {
+    pub fn name(&mut self, obj: ID, name: Name) -> PVMResult<ID> {
         let n_node = self.decl_name(name);
-        self._named(obj, &n_node)
+        Ok(self._named(obj, &n_node))
     }
 
-    pub fn unname(&mut self, obj: ID, name: Name) -> ID {
-        let id = self.name(obj, name);
+    pub fn unname(&mut self, obj: ID, name: Name) -> PVMResult<ID> {
+        let id = self.name(obj, name)?;
         let mut rel = self._rel(id);
         if let Rel::Named(ref mut n_rel) = *rel {
             n_rel.end = self.ctx();
             self.db.update_rel(&*rel);
         }
-        id
+        Ok(id)
     }
 
-    pub fn meta<T: ToString + ?Sized>(&mut self, ent: ID, key: &'static str, val: &T) {
+    pub fn meta<T: ToString + ?Sized>(&mut self, ent: ID, key: &'static str, val: &T) -> PVMResult<()> {
         let mut ent = self._node(ent);
         if !ent.ty().props.contains_key(key) {
             panic!("Setting unknown property on concrete type: {:?} does not have a property named {}.", ent.ty(), key);
@@ -337,15 +361,21 @@ impl PVM {
         let heritable = ent.ty().props[key];
         ent.meta.update(key, val, self.ctx(), heritable);
         self.db.update_node(&*ent);
+        Ok(())
     }
 
-    pub fn connect(&mut self, first: ID, second: ID, dir: ConnectDir) {
-        assert_eq!(self._node(first).pvm_ty(), &Conduit);
-        assert_eq!(self._node(second).pvm_ty(), &Conduit);
+    pub fn connect(&mut self, first: ID, second: ID, dir: ConnectDir) -> PVMResult<()> {
+        if self._node(first).pvm_ty() != &Conduit {
+            return Err(PVMError::AssertionFailure {cont: "connect with primary non conduit".into() });
+        }
+        if self._node(second).pvm_ty() != &Conduit {
+            return Err(PVMError::AssertionFailure {cont: "connect with secondary non conduit".into() });
+        }
         self._inf(first, second, PVMOps::Connect);
         if let ConnectDir::BiDirectional = dir {
             self._inf(second, first, PVMOps::Connect);
         }
+        Ok(())
     }
 
     pub fn shutdown(self) {}

@@ -8,7 +8,7 @@ use data::{
 };
 
 use ingest::{
-    pvm::{ConnectDir, PVMError, PVM},
+    pvm::{ConnectDir, PVMError, PVMResult, PVM},
     Parseable,
 };
 
@@ -150,7 +150,7 @@ impl fmt::Display for AuditEvent {
 }
 
 impl AuditEvent {
-    fn opt_sock_name(&self) -> Result<Option<Name>, PVMError> {
+    fn opt_sock_name(&self) -> PVMResult<Option<Name>> {
         Ok(if let Some(pth) = self.upath1.clone() {
             Some(Name::Path(pth))
         } else if let Some(prt) = self.port {
@@ -161,7 +161,7 @@ impl AuditEvent {
         })
     }
 
-    fn sock_name(&self) -> Result<Name, PVMError> {
+    fn sock_name(&self) -> PVMResult<Name> {
         if let Some(n) = self.opt_sock_name()? {
             Ok(n)
         } else {
@@ -172,387 +172,387 @@ impl AuditEvent {
         }
     }
 
-    fn posix_exec(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_exec(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let cmdline = ref_field!(self.cmdline);
         let binuuid = field!(self.arg_objuuid1);
         let binname = clone_field!(self.upath1);
 
-        let bin = pvm.declare(&FILE, binuuid, None);
-        pvm.name(bin, Name::Path(binname));
+        let bin = pvm.declare(&FILE, binuuid, None)?;
+        pvm.name(bin, Name::Path(binname))?;
 
-        pvm.meta(pro, "cmdline", cmdline);
-        pvm.source(pro, bin);
+        pvm.meta(pro, "cmdline", cmdline)?;
+        pvm.source(pro, bin)?;
 
         if let Some(lduuid) = self.arg_objuuid2 {
             let ldname = clone_field!(self.upath2);
 
-            let ld = pvm.declare(&FILE, lduuid, None);
-            pvm.name(ld, Name::Path(ldname));
+            let ld = pvm.declare(&FILE, lduuid, None)?;
+            pvm.name(ld, Name::Path(ldname))?;
 
-            pvm.source(pro, ld);
+            pvm.source(pro, ld)?;
         }
 
         Ok(())
     }
 
-    fn posix_fork(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_fork(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let ret_objuuid1 = field!(self.ret_objuuid1);
 
-        let ch = pvm.derive(pro, ret_objuuid1);
+        let ch = pvm.derive(pro, ret_objuuid1)?;
 
-        pvm.meta(ch, "pid", &self.retval);
-        pvm.source(ch, pro);
+        pvm.meta(ch, "pid", &self.retval)?;
+        pvm.source(ch, pro)?;
         Ok(())
     }
 
-    fn posix_exit(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_exit(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         pvm.release(&self.subjprocuuid);
         Ok(())
     }
 
-    fn posix_open(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_open(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         if let Some(fuuid) = self.ret_objuuid1 {
             let fname = clone_field!(self.upath1);
 
-            let f = pvm.declare(&FILE, fuuid, None);
-            pvm.name(f, Name::Path(fname));
+            let f = pvm.declare(&FILE, fuuid, None)?;
+            pvm.name(f, Name::Path(fname))?;
         }
         Ok(())
     }
 
-    fn posix_read(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_read(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
 
-        let f = pvm.declare(&FILE, fuuid, None);
+        let f = pvm.declare(&FILE, fuuid, None)?;
         if let Some(pth) = self.fdpath.clone() {
             if pth != "<unknown>" {
-                pvm.name(f, Name::Path(pth));
+                pvm.name(f, Name::Path(pth))?;
             }
         }
-        pvm.source_nbytes(pro, f, self.retval);
+        pvm.source_nbytes(pro, f, self.retval)?;
         Ok(())
     }
 
-    fn posix_write(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_write(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
 
-        let f = pvm.declare(&FILE, fuuid, None);
+        let f = pvm.declare(&FILE, fuuid, None)?;
         if let Some(pth) = self.fdpath.clone() {
             if pth != "<unknown>" {
-                pvm.name(f, Name::Path(pth));
+                pvm.name(f, Name::Path(pth))?;
             }
         }
-        pvm.sinkstart_nbytes(pro, f, self.retval);
+        pvm.sinkstart_nbytes(pro, f, self.retval)?;
         Ok(())
     }
 
-    fn posix_close(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_close(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         if let Some(fuuid) = self.arg_objuuid1 {
-            let f = pvm.declare(&FILE, fuuid, None);
-            pvm.sinkend(pro, f);
+            let f = pvm.declare(&FILE, fuuid, None)?;
+            pvm.sinkend(pro, f)?;
         }
         Ok(())
     }
 
-    fn posix_socket(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_socket(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.ret_objuuid1);
-        pvm.declare(&SOCKET, suuid, None);
+        pvm.declare(&SOCKET, suuid, None)?;
         Ok(())
     }
 
-    fn posix_listen(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_listen(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
-        pvm.declare(&SOCKET, suuid, None);
+        pvm.declare(&SOCKET, suuid, None)?;
         Ok(())
     }
 
-    fn posix_bind(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_bind(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
-        let s = pvm.declare(&SOCKET, suuid, None);
-        pvm.name(s, self.sock_name()?);
+        let s = pvm.declare(&SOCKET, suuid, None)?;
+        pvm.name(s, self.sock_name()?)?;
         Ok(())
     }
 
-    fn posix_accept(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_accept(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let luuid = field!(self.arg_objuuid1);
         let ruuid = field!(self.ret_objuuid1);
-        pvm.declare(&SOCKET, luuid, None);
-        let r = pvm.declare(&SOCKET, ruuid, None);
-        pvm.name(r, self.sock_name()?);
+        pvm.declare(&SOCKET, luuid, None)?;
+        let r = pvm.declare(&SOCKET, ruuid, None)?;
+        pvm.name(r, self.sock_name()?)?;
         Ok(())
     }
 
-    fn posix_connect(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_connect(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
-        let s = pvm.declare(&SOCKET, suuid, None);
-        pvm.name(s, self.sock_name()?);
+        let s = pvm.declare(&SOCKET, suuid, None)?;
+        pvm.name(s, self.sock_name()?)?;
         Ok(())
     }
 
-    fn posix_mmap(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_mmap(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
-        let f = pvm.declare(&FILE, fuuid, None);
+        let f = pvm.declare(&FILE, fuuid, None)?;
         if let Some(fdpath) = self.fdpath.clone() {
-            pvm.name(f, Name::Path(fdpath));
+            pvm.name(f, Name::Path(fdpath))?;
         }
         if let Some(ref flags) = self.arg_mem_flags {
             if flags.contains(&String::from("PROT_WRITE")) {
                 if let Some(ref share_flags) = self.arg_sharing_flags {
                     if !share_flags.contains(&String::from("MAP_PRIVATE")) {
-                        pvm.sinkstart(pro, f);
+                        pvm.sinkstart(pro, f)?;
                     }
                 } else {
-                    pvm.sinkstart(pro, f);
+                    pvm.sinkstart(pro, f)?;
                 }
             }
 
             if flags.contains(&String::from("PROT_READ")) {
-                pvm.source(pro, f);
+                pvm.source(pro, f)?;
             }
         }
         Ok(())
     }
 
-    fn posix_socketpair(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_socketpair(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let ruuid1 = field!(self.ret_objuuid1);
         let ruuid2 = field!(self.ret_objuuid2);
-        let s1 = pvm.declare(&SOCKET, ruuid1, None);
-        let s2 = pvm.declare(&SOCKET, ruuid2, None);
-        pvm.connect(s1, s2, ConnectDir::BiDirectional);
+        let s1 = pvm.declare(&SOCKET, ruuid1, None)?;
+        let s2 = pvm.declare(&SOCKET, ruuid2, None)?;
+        pvm.connect(s1, s2, ConnectDir::BiDirectional)?;
         Ok(())
     }
 
-    fn posix_pipe(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_pipe(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let ruuid1 = field!(self.ret_objuuid1);
         let ruuid2 = field!(self.ret_objuuid2);
-        let p1 = pvm.declare(&PIPE, ruuid1, None);
-        let p2 = pvm.declare(&PIPE, ruuid2, None);
-        pvm.connect(p1, p2, ConnectDir::BiDirectional);
+        let p1 = pvm.declare(&PIPE, ruuid1, None)?;
+        let p2 = pvm.declare(&PIPE, ruuid2, None)?;
+        pvm.connect(p1, p2, ConnectDir::BiDirectional)?;
         Ok(())
     }
 
-    fn posix_sendmsg(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_sendmsg(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
-        let s = pvm.declare(&SOCKET, suuid, None);
+        let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
-            pvm.name(s, n);
+            pvm.name(s, n)?;
         }
-        pvm.sinkstart_nbytes(pro, s, self.retval);
+        pvm.sinkstart_nbytes(pro, s, self.retval)?;
         Ok(())
     }
 
-    fn posix_sendto(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_sendto(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
-        let s = pvm.declare(&SOCKET, suuid, None);
+        let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
-            pvm.name(s, n);
+            pvm.name(s, n)?;
         }
-        pvm.sinkstart_nbytes(pro, s, self.retval);
+        pvm.sinkstart_nbytes(pro, s, self.retval)?;
         Ok(())
     }
 
-    fn posix_recvmsg(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_recvmsg(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
-        let s = pvm.declare(&SOCKET, suuid, None);
+        let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
-            pvm.name(s, n);
+            pvm.name(s, n)?;
         }
-        pvm.source_nbytes(pro, s, self.retval);
+        pvm.source_nbytes(pro, s, self.retval)?;
         Ok(())
     }
 
-    fn posix_recvfrom(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_recvfrom(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let suuid = field!(self.arg_objuuid1);
-        let s = pvm.declare(&SOCKET, suuid, None);
+        let s = pvm.declare(&SOCKET, suuid, None)?;
         if let Some(n) = self.opt_sock_name()? {
-            pvm.name(s, n);
+            pvm.name(s, n)?;
         }
-        pvm.source_nbytes(pro, s, self.retval);
+        pvm.source_nbytes(pro, s, self.retval)?;
         Ok(())
     }
 
-    fn posix_chdir(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_chdir(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let duuid = field!(self.arg_objuuid1);
-        let d = pvm.declare(&FILE, duuid, None);
+        let d = pvm.declare(&FILE, duuid, None)?;
         if let Some(dpath) = self.upath1.clone() {
-            pvm.name(d, Name::Path(dpath));
+            pvm.name(d, Name::Path(dpath))?;
         }
         Ok(())
     }
 
-    fn posix_chmod(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_chmod(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let fpath = clone_field!(self.upath1);
         let mode = field!(self.mode);
-        let f = pvm.declare(&FILE, fuuid, None);
-        pvm.meta(f, "mode", &format!("{:o}", mode));
-        pvm.name(f, Name::Path(fpath));
-        pvm.sink(pro, f);
+        let f = pvm.declare(&FILE, fuuid, None)?;
+        pvm.meta(f, "mode", &format!("{:o}", mode))?;
+        pvm.name(f, Name::Path(fpath))?;
+        pvm.sink(pro, f)?;
         Ok(())
     }
 
-    fn posix_chown(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_chown(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let fpath = clone_field!(self.upath1);
         let arg_uid = field!(self.arg_uid);
         let arg_gid = field!(self.arg_gid);
-        let f = pvm.declare(&FILE, fuuid, None);
-        pvm.meta(f, "owner_uid", &arg_uid);
-        pvm.meta(f, "owner_gid", &arg_gid);
-        pvm.name(f, Name::Path(fpath));
-        pvm.sink(pro, f);
+        let f = pvm.declare(&FILE, fuuid, None)?;
+        pvm.meta(f, "owner_uid", &arg_uid)?;
+        pvm.meta(f, "owner_gid", &arg_gid)?;
+        pvm.name(f, Name::Path(fpath))?;
+        pvm.sink(pro, f)?;
         Ok(())
     }
 
-    fn posix_fchmod(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_fchmod(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let mode = field!(self.mode);
-        let f = pvm.declare(&FILE, fuuid, None);
-        pvm.meta(f, "mode", &format!("{:o}", mode));
-        pvm.sinkstart(pro, f);
+        let f = pvm.declare(&FILE, fuuid, None)?;
+        pvm.meta(f, "mode", &format!("{:o}", mode))?;
+        pvm.sinkstart(pro, f)?;
         Ok(())
     }
 
-    fn posix_fchown(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_fchown(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let arg_uid = field!(self.arg_uid);
         let arg_gid = field!(self.arg_gid);
-        let f = pvm.declare(&FILE, fuuid, None);
-        pvm.meta(f, "owner_uid", &arg_uid);
-        pvm.meta(f, "owner_gid", &arg_gid);
-        pvm.sinkstart(pro, f);
+        let f = pvm.declare(&FILE, fuuid, None)?;
+        pvm.meta(f, "owner_uid", &arg_uid)?;
+        pvm.meta(f, "owner_gid", &arg_gid)?;
+        pvm.sinkstart(pro, f)?;
         Ok(())
     }
 
-    fn posix_posix_openpt(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_posix_openpt(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let ttyuuid = field!(self.ret_objuuid1);
-        pvm.declare(&PTTY, ttyuuid, None);
+        pvm.declare(&PTTY, ttyuuid, None)?;
         Ok(())
     }
 
-    fn posix_link(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_link(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let upath1 = clone_field!(self.upath1);
         let upath2 = clone_field!(self.upath2);
-        let f = pvm.declare(&FILE, fuuid, None);
-        pvm.name(f, Name::Path(upath1));
-        pvm.name(f, Name::Path(upath2));
+        let f = pvm.declare(&FILE, fuuid, None)?;
+        pvm.name(f, Name::Path(upath1))?;
+        pvm.name(f, Name::Path(upath2))?;
         Ok(())
     }
 
-    fn posix_rename(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_rename(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let src_uuid = field!(self.arg_objuuid1);
         let src = clone_field!(self.upath1);
         let dst = clone_field!(self.upath2);
-        let fsrc = pvm.declare(&FILE, src_uuid, None);
-        pvm.unname(fsrc, Name::Path(src));
+        let fsrc = pvm.declare(&FILE, src_uuid, None)?;
+        pvm.unname(fsrc, Name::Path(src))?;
         if let Some(ovr_uuid) = self.arg_objuuid2 {
-            let fovr = pvm.declare(&FILE, ovr_uuid, None);
-            pvm.unname(fovr, Name::Path(dst.clone()));
+            let fovr = pvm.declare(&FILE, ovr_uuid, None)?;
+            pvm.unname(fovr, Name::Path(dst.clone()))?;
         }
-        pvm.name(fsrc, Name::Path(dst));
+        pvm.name(fsrc, Name::Path(dst))?;
         Ok(())
     }
 
-    fn posix_unlink(&self, _pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_unlink(&self, _pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
         let upath1 = clone_field!(self.upath1);
-        let f = pvm.declare(&FILE, fuuid, None);
-        pvm.unname(f, Name::Path(upath1));
+        let f = pvm.declare(&FILE, fuuid, None)?;
+        pvm.unname(f, Name::Path(upath1))?;
         Ok(())
     }
 
-    fn posix_setuid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let uid = ref_field!(self.arg_uid);
-        pvm.meta(pro, "euid", uid);
-        pvm.meta(pro, "ruid", uid);
-        pvm.meta(pro, "suid", uid);
+        pvm.meta(pro, "euid", uid)?;
+        pvm.meta(pro, "ruid", uid)?;
+        pvm.meta(pro, "suid", uid)?;
         Ok(())
     }
 
-    fn posix_seteuid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_seteuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let euid = ref_field!(self.arg_euid);
-        pvm.meta(pro, "euid", euid);
+        pvm.meta(pro, "euid", euid)?;
         Ok(())
     }
 
-    fn posix_setreuid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setreuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let ruid = ref_field!(self.arg_ruid);
         let euid = ref_field!(self.arg_euid);
         if *ruid != -1 {
-            pvm.meta(pro, "ruid", ruid);
+            pvm.meta(pro, "ruid", ruid)?;
         }
         if *euid != -1 {
-            pvm.meta(pro, "euid", euid);
+            pvm.meta(pro, "euid", euid)?;
         }
         Ok(())
     }
 
-    fn posix_setresuid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setresuid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let ruid = ref_field!(self.arg_ruid);
         let euid = ref_field!(self.arg_euid);
         let suid = ref_field!(self.arg_suid);
         if *ruid != -1 {
-            pvm.meta(pro, "ruid", ruid);
+            pvm.meta(pro, "ruid", ruid)?;
         }
         if *euid != -1 {
-            pvm.meta(pro, "euid", euid);
+            pvm.meta(pro, "euid", euid)?;
         }
         if *suid != -1 {
-            pvm.meta(pro, "suid", suid);
+            pvm.meta(pro, "suid", suid)?;
         }
         Ok(())
     }
 
-    fn posix_setgid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setgid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let gid = ref_field!(self.arg_gid);
-        pvm.meta(pro, "egid", gid);
-        pvm.meta(pro, "rgid", gid);
-        pvm.meta(pro, "sgid", gid);
+        pvm.meta(pro, "egid", gid)?;
+        pvm.meta(pro, "rgid", gid)?;
+        pvm.meta(pro, "sgid", gid)?;
         Ok(())
     }
 
-    fn posix_setegid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setegid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let egid = ref_field!(self.arg_egid);
-        pvm.meta(pro, "egid", egid);
+        pvm.meta(pro, "egid", egid)?;
         Ok(())
     }
 
-    fn posix_setregid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setregid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let rgid = ref_field!(self.arg_rgid);
         let egid = ref_field!(self.arg_egid);
         if *rgid != -1 {
-            pvm.meta(pro, "rgid", rgid);
+            pvm.meta(pro, "rgid", rgid)?;
         }
         if *egid != -1 {
-            pvm.meta(pro, "egid", egid);
+            pvm.meta(pro, "egid", egid)?;
         }
         Ok(())
     }
 
-    fn posix_setresgid(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setresgid(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let rgid = ref_field!(self.arg_rgid);
         let egid = ref_field!(self.arg_egid);
         let sgid = ref_field!(self.arg_sgid);
         if *rgid != -1 {
-            pvm.meta(pro, "rgid", rgid);
+            pvm.meta(pro, "rgid", rgid)?;
         }
         if *egid != -1 {
-            pvm.meta(pro, "egid", egid);
+            pvm.meta(pro, "egid", egid)?;
         }
         if *sgid != -1 {
-            pvm.meta(pro, "sgid", sgid);
+            pvm.meta(pro, "sgid", sgid)?;
         }
         Ok(())
     }
 
-    fn posix_setlogin(&self, pro: ID, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn posix_setlogin(&self, pro: ID, pvm: &mut PVM) -> PVMResult<()> {
         let login = ref_field!(self.login);
-        pvm.meta(pro, "login_name", login);
+        pvm.meta(pro, "login_name", login)?;
         Ok(())
     }
 
-    fn parse(&self, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
         pvm.new_ctx(
             &CTX,
             hashmap!(
@@ -560,13 +560,13 @@ impl AuditEvent {
                 "host" => self.host.unwrap().hyphenated().to_string(),
                 "time" => self.time.to_rfc3339(),
             ),
-        );
+        )?;
         let pro = pvm.declare(
             &PROCESS,
             self.subjprocuuid,
             Some(hashmap!("cmdline" => self.exec.clone(),
                          "pid" => self.pid.to_string())),
-        );
+        )?;
         match &self.event[..] {
             "audit:event:aue_accept:" => self.posix_accept(pro, pvm),
             "audit:event:aue_bind:" => self.posix_bind(pro, pvm),
@@ -685,7 +685,7 @@ impl Parseable for TraceEvent {
         pvm.register_ctx_type(&CTX);
     }
 
-    fn parse(&self, pvm: &mut PVM) -> Result<(), PVMError> {
+    fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
         match self {
             TraceEvent::Audit(box tr) => tr.parse(pvm),
             TraceEvent::FBT(_) => Ok(()),
