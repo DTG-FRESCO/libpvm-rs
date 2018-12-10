@@ -121,7 +121,7 @@ impl View for CSVView {
                 let mut options = vec![
                     "--id-type=INTEGER".to_string(),
                     "--multiline-fields=true".to_string(),
-                    "--nodes dbinfo.csv".to_string(),
+                    "--nodes n_dbinfo.csv".to_string(),
                 ];
                 options.extend(nodes.keys().map(|k| format!("--nodes {}", k)));
                 options.extend(rels.keys().map(|k| format!("--relationships {}", k)));
