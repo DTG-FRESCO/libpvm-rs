@@ -173,7 +173,7 @@ impl View for CSVView {
                         write!(out, "db_id:ID,:LABEL").unwrap();
                         match n {
                             Node::Data(d) => {
-                                write!(out, ",uuid,ty,meta_hist").unwrap();
+                                write!(out, ",uuid,ty,ctx:long,meta_hist").unwrap();
                                 for k in d.ty().props.keys() {
                                     write!(out, ",{}", k).unwrap();
                                 }
@@ -196,7 +196,7 @@ impl View for CSVView {
                     write!(out, "{},{}", format_id(n.get_db_id()), n._lab()).unwrap();
                     match n {
                         Node::Data(d) => {
-                            write!(out, ",{},{}", d.uuid(), d.ty().name).unwrap();
+                            write!(out, ",{},{},{}", d.uuid(), d.ty().name, format_id(d.ctx())).unwrap();
                             write_str(&mut out, &serde_json::to_string(&d.meta).unwrap());
                             for k in d.ty().props.keys() {
                                 let val = d.meta.cur(k);
