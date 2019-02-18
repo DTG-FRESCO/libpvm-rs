@@ -58,6 +58,12 @@ impl FromRawFd for UnixPipe {
     }
 }
 
+impl From<fs::File> for IOStream {
+    fn from(f: fs::File) -> Self {
+        IOStream{ src: Box::new(f)}
+    }
+}
+
 impl FromRawFd for IOStream {
     unsafe fn from_raw_fd(fd: RawFd) -> Self {
         let iotype = match get_fd_type(fd) {
