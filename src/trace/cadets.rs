@@ -54,12 +54,13 @@ lazy_static! {
     };
     static ref CTX: ContextType = ContextType {
         name: "cadets_context",
-        props: vec!["time", "event", "host"],
+        props: vec!["time", "event", "host", "trace_offset"],
     };
 }
 
 #[derive(Deserialize, Debug)]
 pub struct AuditEvent {
+    pub offset: Option<usize>,
     pub event: String,
     #[serde(with = "ts_nanoseconds")]
     pub time: DateTime<Utc>,
@@ -553,14 +554,15 @@ impl AuditEvent {
     }
 
     fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
-        pvm.new_ctx(
-            &CTX,
-            hashmap!(
+        let mut ctx = hashmap!(
                 "event" => self.event.clone(),
                 "host" => self.host.unwrap().hyphenated().to_string(),
                 "time" => self.time.to_rfc3339(),
-            ),
-        )?;
+            );
+        if let Some(offset) = self.offset {
+            ctx.insert("trace_offset", offset.to_string());
+        }
+        pvm.new_ctx(&CTX, ctx)?;
         let pro = pvm.declare(
             &PROCESS,
             self.subjprocuuid,
@@ -622,6 +624,7 @@ impl AuditEvent {
 
 #[derive(Deserialize, Debug)]
 pub struct FBTEvent {
+    pub offset: Option<usize>,
     pub event: String,
     pub host: Uuid,
     #[serde(with = "ts_nanoseconds")]
@@ -689,6 +692,17 @@ impl Parseable for TraceEvent {
         match self {
             TraceEvent::Audit(box tr) => tr.parse(pvm),
             TraceEvent::FBT(_) => Ok(()),
+        }
+    }
+
+    fn set_offset(&mut self, offset: usize) {
+        match self {
+            TraceEvent::Audit(e) => {
+                e.offset = Some(offset);
+            }
+            TraceEvent::FBT(e) => {
+                e.offset = Some(offset);
+            }
         }
     }
 }

@@ -18,6 +18,7 @@ const BATCH_SIZE: usize = 0x80_000;
 pub trait Parseable: DeserializeOwned + Display + Send + Sized {
     fn init(pvm: &mut PVM);
     fn parse(&self, pvm: &mut PVM) -> Result<(), PVMError>;
+    fn set_offset(&mut self, offset: usize);
 }
 
 pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
@@ -57,8 +58,11 @@ pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
 
         pre_vec
             .par_iter()
-            .map(|(n, s)| match serde_json::from_slice(s.as_bytes()) {
-                Ok(evt) => (*n, Some(evt)),
+            .map(|(n, s)| match serde_json::from_slice::<T>(s.as_bytes()) {
+                Ok(mut evt) => {
+                    evt.set_offset(*n);
+                    (*n, Some(evt))
+                },
                 Err(perr) => {
                     eprintln!("Line: {}", n + 1);
                     eprintln!("JSON Parsing error: {}", perr);
