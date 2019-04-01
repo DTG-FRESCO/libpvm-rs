@@ -50,5 +50,6 @@ pub mod ingest;
 pub mod invbloom;
 pub mod iostream;
 pub mod neo4j_glue;
+pub mod persistance;
 pub mod query;
 pub mod trace;
