@@ -19,9 +19,9 @@ extern crate rayon;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate transactions;
 extern crate nix;
 extern crate serde_json;
+extern crate transactions;
 extern crate uuid;
 extern crate zip;
 
@@ -46,10 +46,11 @@ pub use c_api::*;
 
 pub mod c_api;
 pub mod engine;
+pub mod id_counter;
 pub mod ingest;
 pub mod invbloom;
 pub mod iostream;
 pub mod neo4j_glue;
-pub mod persistance;
+pub mod persistence;
 pub mod query;
 pub mod trace;

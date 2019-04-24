@@ -1,10 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter, Result as FMTResult},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc::SyncSender,
-    },
+    sync::mpsc::SyncSender,
 };
 
 use data::{
@@ -15,14 +12,16 @@ use data::{
     rel_types::{Inf, InfInit, Named, NamedInit, PVMOps, Rel},
     Denumerate, Enumerable, HasID, MetaStore, RelGenerable, ID,
 };
+use id_counter::IDCounter;
+use persistence::Persistence;
 use views::DBTr;
 
 use either::Either;
-use lending_library::{LendingLibrary, Loan};
-use transactions::{hash_wrap::HashWrap, lending_wrap::LendingWrap};
+use lending_library::Loan;
+use transactions::hash_wrap::HashWrap;
 use uuid::Uuid;
 
-use super::db::{DBStore, DB};
+use super::db::DB;
 
 pub enum PVMError {
     AssertionFailure { cont: String },
@@ -42,52 +41,6 @@ impl Display for PVMError {
 
 pub type PVMResult<T> = Result<T, PVMError>;
 
-#[derive(Debug)]
-pub struct IDCounter {
-    store: AtomicUsize,
-}
-
-impl IDCounter {
-    pub fn new(init: usize) -> Self {
-        IDCounter {
-            store: AtomicUsize::new(init),
-        }
-    }
-
-    pub fn get(&self) -> ID {
-        ID::new(self.store.fetch_add(1, Ordering::Relaxed) as u64)
-    }
-
-    pub fn snapshot(&self) -> Self {
-        IDCounter {
-            store: AtomicUsize::new(self.store.load(Ordering::Relaxed)),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct IDWrap<'a> {
-    inner: &'a mut IDCounter,
-    cur: IDCounter,
-}
-
-impl<'a> IDWrap<'a> {
-    pub fn new(inner: &'a mut IDCounter) -> Self {
-        let cur = inner.snapshot();
-        IDWrap { inner, cur }
-    }
-
-    pub fn get(&self) -> ID {
-        self.cur.get()
-    }
-
-    pub fn commit(self) {
-        self.inner
-            .store
-            .store(self.cur.store.load(Ordering::SeqCst), Ordering::SeqCst);
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectDir {
     Mono,
@@ -95,30 +48,18 @@ pub enum ConnectDir {
 }
 
 pub struct PVM {
-    db: DB,
+    store: Persistence,
     type_cache: HashSet<&'static ConcreteType>,
     ctx_type_cache: HashSet<&'static ContextType>,
-    uuid_cache: HashMap<Uuid, ID>,
-    node_cache: LendingLibrary<ID, DataNode>,
-    rel_src_dst_cache: HashMap<(&'static str, ID, ID), ID>,
-    rel_cache: LendingLibrary<ID, Rel>,
-    id: IDCounter,
     open_cache: HashMap<Uuid, HashSet<Uuid>>,
-    name_cache: LendingLibrary<Name, NameNode>,
     pub unparsed_events: HashSet<String>,
 }
 
 pub struct PVMTransaction<'a> {
-    db: DBStore<'a>,
+    store: &'a mut Persistence,
     type_cache: &'a HashSet<&'static ConcreteType>,
-    uuid_cache: HashWrap<'a, Uuid, ID>,
-    node_cache: LendingWrap<'a, ID, DataNode>,
-    rel_src_dst_cache: HashWrap<'a, (&'static str, ID, ID), ID>,
-    rel_cache: LendingWrap<'a, ID, Rel>,
-    id: IDWrap<'a>,
+    id: IDCounter,
     open_cache: HashWrap<'a, Uuid, HashSet<Uuid>>,
-    name_cache: LendingWrap<'a, Name, NameNode>,
-    ctx: ID,
     ctx_node: CtxNode,
 }
 
@@ -128,60 +69,26 @@ impl<'a> PVMTransaction<'a> {
         ctx_ty: &'static ContextType,
         ctx_cont: HashMap<&'static str, String>,
     ) -> Self {
-        let id = IDWrap::new(&mut base.id);
-        let ctx = id.get();
-        let ctx_node = CtxNode::new(ctx, ctx_ty, ctx_cont).unwrap();
+        assert!(base.ctx_type_cache.contains(ctx_ty));
+        let id = base.store.id_snap();
+        let ctx_node = CtxNode::new(id.get(), ctx_ty, ctx_cont).unwrap();
         PVMTransaction {
-            db: base.db.store(),
+            store: &mut base.store,
             type_cache: &base.type_cache,
-            uuid_cache: HashWrap::new(&mut base.uuid_cache),
-            node_cache: LendingWrap::new(&mut base.node_cache),
-            rel_src_dst_cache: HashWrap::new(&mut base.rel_src_dst_cache),
-            rel_cache: LendingWrap::new(&mut base.rel_cache),
             id,
             open_cache: HashWrap::new(&mut base.open_cache),
-            name_cache: LendingWrap::new(&mut base.name_cache),
-            ctx,
             ctx_node,
         }
     }
 
-    pub fn commit(mut self) {
-        self.uuid_cache.commit();
-        self.node_cache.commit();
-        self.rel_src_dst_cache.commit();
-        self.rel_cache.commit();
-        self.open_cache.commit();
-        self.name_cache.commit();
-        if self.db.len() == 0 {
-        } else {
-            self.id.commit();
-            self.db.create_node(self.ctx_node);
-            self.db.commit();
-        }
-    }
+    pub fn commit(mut self) {}
 
-    pub fn rollback(self) {
-        self.uuid_cache.rollback();
-        self.node_cache.commit();
-        self.rel_src_dst_cache.rollback();
-        self.rel_cache.commit();
-        self.open_cache.rollback();
-        self.name_cache.commit();
-    }
+    pub fn rollback(self) {}
 
     pub fn release(&mut self, uuid: &Uuid) {
         if let Some(nid) = self.uuid_cache.remove(uuid) {
             self.node_cache.remove(&nid);
         }
-    }
-
-    fn _node(&mut self, id: ID) -> Loan<ID, DataNode> {
-        self.node_cache.lend(&id).unwrap()
-    }
-
-    fn _rel(&mut self, id: ID) -> Loan<ID, Rel> {
-        self.rel_cache.lend(&id).unwrap()
     }
 
     fn _decl_rel<T: RelGenerable + Enumerable<Target = Rel>, S: Fn(ID) -> T::Init>(
@@ -194,7 +101,7 @@ impl<'a> PVMTransaction<'a> {
         if self.rel_src_dst_cache.contains_key(&triple) {
             self.rel_src_dst_cache[&triple]
         } else {
-            let id = self.id.get();
+            let id = self.store.id();
             let rel = T::new(id, src, dst, init(self.ctx)).enumerate();
             self.db.create_rel(&rel);
             self.rel_src_dst_cache.insert(triple, id);
@@ -442,12 +349,8 @@ impl PVM {
             type_cache: HashSet::new(),
             ctx_type_cache: HashSet::new(),
             uuid_cache: HashMap::new(),
-            node_cache: LendingLibrary::new(),
             rel_src_dst_cache: HashMap::new(),
-            rel_cache: LendingLibrary::new(),
-            id: IDCounter::new(1),
             open_cache: HashMap::new(),
-            name_cache: LendingLibrary::new(),
             unparsed_events: HashSet::new(),
         }
     }
