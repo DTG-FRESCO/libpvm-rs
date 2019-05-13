@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Thomas Bytheway <tb403@cam.ac.uk>"]
 
 [dependencies]
-uuid = "0.6"
+uuid = "0.7"
 chrono = { version = ">=0.4.3", features = ["serde"] }
 serde = "*"
 serde_derive = "*"

@@ -38,7 +38,7 @@ impl Val2UUID for Value {
 
 impl IntoVal for Uuid {
     fn into_val(self) -> Value {
-        Value::String(self.hyphenated().to_string())
+        Value::String(self.to_hyphenated_ref().to_string())
     }
 }
 

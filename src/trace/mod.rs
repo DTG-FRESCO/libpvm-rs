@@ -49,7 +49,7 @@ impl<T: MapFmt + fmt::Debug> MapFmt for Option<T> {
 
 impl MapFmt for Uuid {
     fn entry(&self, f: &mut fmt::DebugMap, key: &str) {
-        f.entry(&key, &self.hyphenated().to_string());
+        f.entry(&key, &self.to_hyphenated_ref().to_string());
     }
 }
 

@@ -556,7 +556,7 @@ impl AuditEvent {
     fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
         let mut ctx = hashmap!(
             "event" => self.event.clone(),
-            "host" => self.host.unwrap().hyphenated().to_string(),
+            "host" => self.host.unwrap().to_hyphenated_ref().to_string(),
             "time" => self.time.to_rfc3339(),
         );
         if let Some(offset) = self.offset {
