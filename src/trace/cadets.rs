@@ -553,18 +553,7 @@ impl AuditEvent {
         Ok(())
     }
 
-    fn parse(&mut self, pvm: &mut PVM) -> PVMResult<()> {
-        if let Some(host) = self.host {
-            let map_uuid = |u: Uuid| Uuid::new_v5(&host, u.as_bytes());
-
-            self.arg_objuuid1 = self.arg_objuuid1.map(map_uuid);
-            self.arg_objuuid2 = self.arg_objuuid2.map(map_uuid);
-            self.ret_objuuid1 = self.ret_objuuid1.map(map_uuid);
-            self.ret_objuuid2 = self.ret_objuuid2.map(map_uuid);
-            self.subjprocuuid = map_uuid(self.subjprocuuid);
-            self.subjthruuid = map_uuid(self.subjthruuid);
-        }
-
+    fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
         let mut ctx = hashmap!(
             "event" => self.event.clone(),
             "host" => self.host.unwrap().to_hyphenated_ref().to_string(),
@@ -714,7 +703,22 @@ impl Parseable for TraceEvent {
         pvm.register_ctx_type(&CTX);
     }
 
-    fn parse(&mut self, pvm: &mut PVM) -> PVMResult<()> {
+    fn update(&mut self) {
+        if let TraceEvent::Audit(e) = self {
+            if let Some(host) = e.host {
+                let map_uuid = |u: Uuid| Uuid::new_v5(&host, u.as_bytes());
+
+                e.arg_objuuid1 = e.arg_objuuid1.map(map_uuid);
+                e.arg_objuuid2 = e.arg_objuuid2.map(map_uuid);
+                e.ret_objuuid1 = e.ret_objuuid1.map(map_uuid);
+                e.ret_objuuid2 = e.ret_objuuid2.map(map_uuid);
+                e.subjprocuuid = map_uuid(e.subjprocuuid);
+                e.subjthruuid = map_uuid(e.subjthruuid);
+            }
+        }
+    }
+
+    fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
         match self {
             TraceEvent::Audit(box tr) => tr.parse(pvm),
             TraceEvent::FBT(_) => Ok(()),
