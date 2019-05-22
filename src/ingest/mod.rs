@@ -62,6 +62,7 @@ pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
             .map(|(n, s)| match serde_json::from_slice::<T>(s.as_bytes()) {
                 Ok(mut evt) => {
                     evt.set_offset(*n);
+                    evt.update();
                     (*n, Some(evt))
                 }
                 Err(perr) => {
@@ -72,10 +73,8 @@ pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
                 }
             })
             .collect_into(&mut post_vec);
-
         for (n, tr) in post_vec.drain(..) {
             if let Some(mut tr) = tr {
-                tr.update();
                 if let Err(e) = tr.parse(pvm) {
                     eprintln!("Line: {}", n + 1);
                     eprintln!("PVM Parsing error: {}", e);
