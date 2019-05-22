@@ -13,9 +13,8 @@ namespace = "opus"
 
 [parse]
 parse_deps = true
-include = ["libopus", "pvm_cfg"]
+include = ["libopus", "pvm-cfg"]
 
 [export]
 include = ["OpusErr"]
 # A list of items to not include in the generated bindings
-exclude = ["BATCH_SIZE", "N", "S_IFCHR", "S_IFIFO", "S_IFMT", "S_IFREG", "S_IFSOCK", "TR_SIZE"]
