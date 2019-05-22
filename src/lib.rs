@@ -19,9 +19,9 @@ extern crate rayon;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate transactions;
 extern crate nix;
 extern crate serde_json;
+extern crate transactions;
 extern crate uuid;
 extern crate zip;
 

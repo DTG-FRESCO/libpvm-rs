@@ -121,7 +121,7 @@ impl Engine {
         }
     }
 
-    pub fn ingest_record<T: Parseable>(&mut self, rec: &T) -> EngineResult<()> {
+    pub fn ingest_record<T: Parseable>(&mut self, rec: &mut T) -> EngineResult<()> {
         if let Some(ref mut pipeline) = self.pipeline {
             rec.parse(&mut pipeline.pvm)
                 .map_err(|e| e.to_string().into())

@@ -17,7 +17,7 @@ const BATCH_SIZE: usize = 0x80_000;
 
 pub trait Parseable: DeserializeOwned + Display + Send + Sized {
     fn init(pvm: &mut PVM);
-    fn parse(&self, pvm: &mut PVM) -> Result<(), PVMError>;
+    fn parse(&mut self, pvm: &mut PVM) -> Result<(), PVMError>;
     fn set_offset(&mut self, offset: usize);
 }
 
@@ -73,7 +73,7 @@ pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
             .collect_into(&mut post_vec);
 
         for (n, tr) in post_vec.drain(..) {
-            if let Some(tr) = tr {
+            if let Some(mut tr) = tr {
                 if let Err(e) = tr.parse(pvm) {
                     eprintln!("Line: {}", n + 1);
                     eprintln!("PVM Parsing error: {}", e);
