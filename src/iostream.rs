@@ -37,7 +37,7 @@ pub enum FdClass {
 }
 
 pub struct IOStream {
-    src: Box<Read>,
+    src: Box<Read + Send>,
 }
 
 impl Read for UdpSocketR {
@@ -71,11 +71,11 @@ impl FromRawFd for IOStream {
             Err(e) => IOType::Unknown(e),
         };
         let fd_obj = match iotype {
-            IOType::File => Box::new(fs::File::from_raw_fd(fd)) as Box<Read>,
-            IOType::Pipe => Box::new(UnixPipe::from_raw_fd(fd)) as Box<Read>,
-            IOType::TcpStream => Box::new(net::TcpStream::from_raw_fd(fd)) as Box<Read>,
-            IOType::UdpSocket => Box::new(UdpSocketR(net::UdpSocket::from_raw_fd(fd))) as Box<Read>,
-            IOType::UnixStream => Box::new(unix::net::UnixStream::from_raw_fd(fd)) as Box<Read>,
+            IOType::File => Box::new(fs::File::from_raw_fd(fd)) as Box<Read + Send>,
+            IOType::Pipe => Box::new(UnixPipe::from_raw_fd(fd)) as Box<Read + Send>,
+            IOType::TcpStream => Box::new(net::TcpStream::from_raw_fd(fd)) as Box<Read + Send>,
+            IOType::UdpSocket => Box::new(UdpSocketR(net::UdpSocket::from_raw_fd(fd))) as Box<Read + Send>,
+            IOType::UnixStream => Box::new(unix::net::UnixStream::from_raw_fd(fd)) as Box<Read + Send>,
             IOType::Unknown(e) => {
                 panic!(
                     "Unsupported input stream. You have passed a fd type that is not supported by libopus: {}",

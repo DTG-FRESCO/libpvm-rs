@@ -7,6 +7,7 @@ pub extern crate pvm_data as data;
 pub extern crate pvm_views as views;
 
 extern crate chrono;
+extern crate crossbeam_utils;
 extern crate either;
 #[macro_use]
 extern crate lazy_static;
