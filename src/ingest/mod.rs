@@ -16,7 +16,7 @@ use serde::de::DeserializeOwned;
 
 use self::pvm::{PVMError, PVM};
 
-const BATCH_SIZE: usize = 0x80_000;
+const BATCH_SIZE: usize = 0x10_000;
 
 pub trait Parseable: DeserializeOwned + Display + Send + Sized {
     fn init(pvm: &mut PVM);
@@ -25,13 +25,13 @@ pub trait Parseable: DeserializeOwned + Display + Send + Sized {
     fn set_offset(&mut self, offset: usize);
 }
 
-pub fn ingest_stream<R: Read + Send + 'static, T: Parseable + 'static>(stream: R, pvm: &mut PVM) {
+pub fn ingest_stream<R: Read + Send, T: Parseable>(stream: R, pvm: &mut PVM) {
     scope(|s| {
         let lines = BufReader::new(stream).lines().enumerate();
 
         T::init(pvm);
 
-        let (f_out, p_in) = sync_channel(BATCH_SIZE);
+        let (f_out, p_in) = sync_channel(BATCH_SIZE * 2);
 
         s.builder()
             .name("PVM-File Read".to_string())
@@ -60,7 +60,7 @@ pub fn ingest_stream<R: Read + Send + 'static, T: Parseable + 'static>(stream: R
             })
             .unwrap();
 
-        let (p_out, c_in) = sync_channel(BATCH_SIZE);
+        let (p_out, c_in) = sync_channel(BATCH_SIZE * 2);
 
         s.builder()
             .name("PVM-JSON Parse".to_string())
