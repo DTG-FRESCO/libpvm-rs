@@ -17,6 +17,7 @@ use data::{
 };
 use views::DBTr;
 
+use bytesize::to_string as to_human_bytes;
 use either::Either;
 use lending_library::{LendingLibrary, Loan};
 use transactions::{hash_wrap::HashWrap, lending_wrap::LendingWrap};
@@ -106,6 +107,7 @@ pub struct PVM {
     open_cache: HashMap<Uuid, HashSet<Uuid>>,
     name_cache: LendingLibrary<Name, NameNode>,
     pub unparsed_events: HashSet<String>,
+    mem_tick: i64,
 }
 
 pub struct PVMTransaction<'a> {
@@ -435,6 +437,18 @@ impl<'a> PVMTransaction<'a> {
     }
 }
 
+fn size_of_ll<K: std::hash::Hash, V>(v: &LendingLibrary<K, V>) -> u64 {
+    use std::mem::size_of;
+
+    ((v.capacity() * 11 / 10) * (size_of::<K>() + size_of::<V>() + size_of::<u64>() * 2)) as u64
+}
+
+fn size_of_hm<K, V>(v: &HashMap<K, V>) -> u64 {
+    use std::mem::size_of;
+
+    ((v.capacity() * 11 / 10) * (size_of::<K>() + size_of::<V>() + size_of::<u64>())) as u64
+}
+
 impl PVM {
     pub fn new(db: SyncSender<DBTr>) -> Self {
         PVM {
@@ -449,6 +463,7 @@ impl PVM {
             open_cache: HashMap::new(),
             name_cache: LendingLibrary::new(),
             unparsed_events: HashSet::new(),
+            mem_tick: 0,
         }
     }
 
@@ -457,6 +472,33 @@ impl PVM {
         ctx_ty: &'static ContextType,
         ctx_cont: HashMap<&'static str, String>,
     ) -> PVMTransaction {
+        self.mem_tick = (self.mem_tick + 1) % 10_000;
+        if self.mem_tick == 0 {
+            println!(
+                "Uuid_cache: {}",
+                to_human_bytes(size_of_hm(&self.uuid_cache), true)
+            );
+            println!(
+                "Node_cache: {}",
+                to_human_bytes(size_of_ll(&self.node_cache), true)
+            );
+            println!(
+                "Rel_src_dst_cache: {}",
+                to_human_bytes(size_of_hm(&self.rel_src_dst_cache), true)
+            );
+            println!(
+                "Rel_cache: {}",
+                to_human_bytes(size_of_ll(&self.rel_cache), true)
+            );
+            println!(
+                "Open_cache: {}",
+                to_human_bytes((self.open_cache.capacity() * 8) as u64, true)
+            );
+            println!(
+                "Name_cache: {}",
+                to_human_bytes(size_of_ll(&self.name_cache), true)
+            );
+        }
         PVMTransaction::start(self, ctx_ty, ctx_cont)
     }
 

@@ -21,6 +21,7 @@ members = [
 ]
 
 [dependencies]
+bytesize = "1.0"
 crossbeam-utils = "0.6"
 lending-library = "0.2.*"
 lazy_static = "*"

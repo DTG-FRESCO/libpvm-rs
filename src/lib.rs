@@ -6,6 +6,7 @@ pub extern crate pvm_cfg as cfg;
 pub extern crate pvm_data as data;
 pub extern crate pvm_views as views;
 
+extern crate bytesize;
 extern crate chrono;
 extern crate crossbeam_utils;
 extern crate either;
