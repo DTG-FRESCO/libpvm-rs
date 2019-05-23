@@ -100,6 +100,7 @@ impl ViewCoordinator {
                         for stream in strs.iter_mut() {
                             stream.send(v.clone()).unwrap();
                         }
+                        drop(v);
                     }
                 }
             }),
