@@ -373,6 +373,7 @@ impl<'a> PVMTransaction<'a> {
                 .remove(&act.uuid());
             if self.open_cache[&ent.uuid()].is_empty() {
                 self._version(&ent, Either::Right(Store))?;
+                self.open_cache.remove(&ent.uuid());
             }
         }
         Ok(())
