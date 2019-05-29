@@ -4,13 +4,10 @@ pub mod pvm;
 use std::{
     fmt::Display,
     io::{BufRead, BufReader, Read},
-    sync::mpsc::sync_channel,
 };
 
 use rayon::prelude::*;
 use serde_json;
-
-use crossbeam_utils::thread::scope;
 
 use serde::de::DeserializeOwned;
 
@@ -25,94 +22,70 @@ pub trait Parseable: DeserializeOwned + Display + Send + Sized {
     fn set_offset(&mut self, offset: usize);
 }
 
-pub fn ingest_stream<R: Read + Send, T: Parseable>(stream: R, pvm: &mut PVM) {
-    scope(|s| {
-        let lines = BufReader::with_capacity(4096, stream).lines().enumerate();
+pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
+    let mut pre_vec: Vec<(usize, String)> = Vec::with_capacity(BATCH_SIZE);
+    let mut post_vec: Vec<(usize, Option<T>)> = Vec::with_capacity(BATCH_SIZE);
+    let mut lines = BufReader::new(stream).lines().enumerate();
 
-        T::init(pvm);
+    T::init(pvm);
 
-        let (f_out, p_in) = sync_channel(BATCH_SIZE * 2);
-
-        s.builder()
-            .name("PVM-File Read".to_string())
-            .spawn(move |_| {
-                for (n, l) in lines {
-                    match l {
-                        Ok(mut l) => {
-                            if l.is_empty() {
-                                continue;
-                            }
-                            if l == "[" || l == "]" {
-                                continue;
-                            }
-                            if l.starts_with(", ") {
-                                l.drain(0..2);
-                            }
-                            f_out.send((n, l)).unwrap();
-                        }
-                        Err(perr) => {
-                            eprintln!("Line: {}", n + 1);
-                            eprintln!("File Reading error: {}", perr);
-                            continue;
-                        }
+    loop {
+        pre_vec.clear();
+        while pre_vec.len() < BATCH_SIZE {
+            let (n, mut l) = match lines.next() {
+                Some((n, l)) => match l {
+                    Ok(l) => (n, l),
+                    Err(perr) => {
+                        eprintln!("Line: {}", n + 1);
+                        eprintln!("File Reading error: {}", perr);
+                        continue;
                     }
+                },
+                None => {
+                    break;
+                }
+            };
+            if l.is_empty() {
+                continue;
+            }
+            if l == "[" || l == "]" {
+                continue;
+            }
+            if l.starts_with(", ") {
+                l.drain(0..2);
+            }
+            pre_vec.push((n, l));
+        }
+
+        pre_vec
+            .par_iter()
+            .map(|(n, s)| match serde_json::from_slice::<T>(s.as_bytes()) {
+                Ok(mut evt) => {
+                    evt.set_offset(*n);
+                    evt.update();
+                    (*n, Some(evt))
+                }
+                Err(perr) => {
+                    eprintln!("Line: {}", n + 1);
+                    eprintln!("JSON Parsing error: {}", perr);
+                    eprintln!("{}", s);
+                    (*n, None)
                 }
             })
-            .unwrap();
-
-        let (p_out, c_in) = sync_channel(BATCH_SIZE * 2);
-
-        s.builder()
-            .name("PVM-JSON Parse".to_string())
-            .spawn(move |_| {
-                let mut pre_vec: Vec<(usize, String)> = Vec::with_capacity(BATCH_SIZE);
-                let mut post_vec: Vec<(usize, Option<T>)> = Vec::with_capacity(BATCH_SIZE);
-
-                loop {
-                    pre_vec.extend(p_in.iter().take(BATCH_SIZE));
-                    pre_vec
-                        .par_iter()
-                        .map(|(n, s)| match serde_json::from_slice::<T>(s.as_bytes()) {
-                            Ok(mut evt) => {
-                                evt.set_offset(*n);
-                                evt.update();
-                                (*n, Some(evt))
-                            }
-                            Err(perr) => {
-                                eprintln!("Line: {}", n + 1);
-                                eprintln!("JSON Parsing error: {}", perr);
-                                eprintln!("{}", s);
-                                (*n, None)
-                            }
-                        })
-                        .collect_into_vec(&mut post_vec);
-                    for e in post_vec.drain(..) {
-                        p_out.send(e).unwrap();
-                    }
-                    if pre_vec.len() < BATCH_SIZE {
-                        break;
-                    }
+            .collect_into_vec(&mut post_vec);
+        for (n, tr) in post_vec.drain(..) {
+            if let Some(mut tr) = tr {
+                if let Err(e) = tr.parse(pvm) {
+                    eprintln!("Line: {}", n + 1);
+                    eprintln!("PVM Parsing error: {}", e);
+                    eprintln!("{}", tr);
                 }
-            })
-            .unwrap();
-
-        s.builder()
-            .name("PVM-PVM Process".to_string())
-            .spawn(|_| {
-                for (n, tr) in c_in {
-                    if let Some(tr) = tr {
-                        if let Err(e) = tr.parse(pvm) {
-                            eprintln!("Line: {}", n + 1);
-                            eprintln!("PVM Parsing error: {}", e);
-                            eprintln!("{}", tr);
-                        }
-                    }
-                }
-            })
-            .unwrap();
-    })
-    .unwrap();
-
+            }
+        }
+        if pre_vec.len() < BATCH_SIZE {
+            break;
+        }
+    }
     println!("Missing Events:");
     for evt in pvm.unparsed_events.drain() {
         println!("{}", evt);
