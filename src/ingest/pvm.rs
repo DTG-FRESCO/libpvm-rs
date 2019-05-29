@@ -1,9 +1,13 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter, Result as FMTResult},
+    fs::File,
+    io::{Seek, SeekFrom, Write},
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc::SyncSender,
+        Mutex,
     },
 };
 
@@ -473,32 +477,55 @@ impl PVM {
         ctx_ty: &'static ContextType,
         ctx_cont: HashMap<&'static str, String>,
     ) -> PVMTransaction {
-        self.mem_tick = (self.mem_tick + 1) % 10_000;
-        if self.mem_tick == 0 {
-            println!(
+        self.mem_tick = self.mem_tick + 1;
+        if (self.mem_tick % 10_000) == 0 {
+            lazy_static! {
+                static ref F: Mutex<RefCell<File>> =
+                    Mutex::new(RefCell::new(File::create("./meminfo").unwrap()));
+            };
+
+            let f = F.lock().unwrap();
+            let mut fw = f.borrow_mut();
+
+            writeln!(fw, "Event No: {}", self.mem_tick).unwrap();
+            writeln!(
+                fw,
                 "Uuid_cache: {}",
                 to_human_bytes(size_of_hm(&self.uuid_cache), true)
-            );
-            println!(
+            )
+            .unwrap();
+            writeln!(
+                fw,
                 "Node_cache: {}",
                 to_human_bytes(size_of_ll(&self.node_cache), true)
-            );
-            println!(
+            )
+            .unwrap();
+            writeln!(
+                fw,
                 "Rel_src_dst_cache: {}",
                 to_human_bytes(size_of_hm(&self.rel_src_dst_cache), true)
-            );
-            println!(
+            )
+            .unwrap();
+            writeln!(
+                fw,
                 "Rel_cache: {}",
                 to_human_bytes(size_of_ll(&self.rel_cache), true)
-            );
-            println!(
+            )
+            .unwrap();
+            writeln!(
+                fw,
                 "Open_cache: {}",
                 to_human_bytes((self.open_cache.capacity() * 8) as u64, true)
-            );
-            println!(
+            )
+            .unwrap();
+            writeln!(
+                fw,
                 "Name_cache: {}",
                 to_human_bytes(size_of_ll(&self.name_cache), true)
-            );
+            )
+            .unwrap();
+            fw.flush().unwrap();
+            fw.seek(SeekFrom::Start(0)).unwrap();
         }
         PVMTransaction::start(self, ctx_ty, ctx_cont)
     }
