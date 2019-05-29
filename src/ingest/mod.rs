@@ -85,7 +85,7 @@ pub fn ingest_stream<R: Read + Send, T: Parseable>(stream: R, pvm: &mut PVM) {
                                 (*n, None)
                             }
                         })
-                        .collect_into(&mut post_vec);
+                        .collect_into_vec(&mut post_vec);
                     for e in post_vec.drain(..) {
                         p_out.send(e).unwrap();
                     }

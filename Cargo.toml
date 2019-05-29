@@ -30,7 +30,7 @@ serde_json = "*"
 serde_derive = "1.0"
 libc = "*"
 nix = "0.9.0"
-rayon = "0.8.2"
+rayon = "1.0"
 maplit = "*"
 either = "1.5"
 uuid = { version = "0.7", features = ["serde", "v5"] }
