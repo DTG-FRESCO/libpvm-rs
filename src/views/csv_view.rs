@@ -16,7 +16,7 @@ use data::{
     rel_types::Rel,
     HasDst, HasID, HasSrc, ID,
 };
-use views::*;
+use view::*;
 
 use serde_json;
 

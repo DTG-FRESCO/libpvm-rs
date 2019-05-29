@@ -19,7 +19,7 @@ use data::{
     rel_types::{Inf, InfInit, Named, NamedInit, PVMOps, Rel},
     Denumerate, Enumerable, HasID, MetaStore, RelGenerable, ID,
 };
-use views::DBTr;
+use view::DBTr;
 
 use bytesize::to_string as to_human_bytes;
 use either::Either;

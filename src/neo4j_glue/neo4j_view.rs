@@ -10,7 +10,7 @@ use data::ID;
 
 use cfg::Config;
 use neo4j_glue::{ToDBNode, ToDBRel};
-use views::*;
+use view::*;
 
 const BATCH_SIZE: usize = 1000;
 const TR_SIZE: usize = 100_000;

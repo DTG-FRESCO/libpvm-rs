@@ -4,7 +4,7 @@
 
 pub extern crate pvm_cfg as cfg;
 pub extern crate pvm_data as data;
-pub extern crate pvm_views as views;
+pub extern crate pvm_views as view;
 
 extern crate bytesize;
 extern crate chrono;
@@ -53,3 +53,4 @@ pub mod iostream;
 pub mod neo4j_glue;
 pub mod query;
 pub mod trace;
+pub mod views;

@@ -1,11 +1,12 @@
 use ingest::{ingest_stream, pvm::PVM, Parseable};
 use iostream::IOStream;
-use neo4j_glue::{CSVView, Neo4JView};
+use neo4j_glue::Neo4JView;
 use query::low::count_processes;
 use std::{borrow::Cow, sync::mpsc};
 
 use cfg::Config;
-use views::{View, ViewCoordinator, ViewInst, ViewParams};
+use view::{View, ViewCoordinator, ViewInst, ViewParams};
+use views::{CSVView, ProcTreeView};
 
 use neo4j::Neo4jDB;
 
@@ -48,6 +49,7 @@ impl Engine {
             view_ctrl.create_view_inst(neo4j_view_id, hashmap!(), &self.cfg);
         }
         view_ctrl.register_view_type::<CSVView>();
+        view_ctrl.register_view_type::<ProcTreeView>();
         self.pipeline = Some(Pipeline {
             pvm: PVM::new(send),
             view_ctrl,

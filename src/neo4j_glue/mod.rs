@@ -1,7 +1,6 @@
-mod csv_view;
 mod neo4j_view;
 
-pub use self::{csv_view::CSVView, neo4j_view::Neo4JView};
+pub use self::neo4j_view::Neo4JView;
 
 use std::{borrow::Cow, collections::HashMap, mem};
 
