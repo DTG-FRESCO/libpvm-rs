@@ -27,7 +27,7 @@ pub trait Parseable: DeserializeOwned + Display + Send + Sized {
 
 pub fn ingest_stream<R: Read + Send, T: Parseable>(stream: R, pvm: &mut PVM) {
     scope(|s| {
-        let lines = BufReader::new(stream).lines().enumerate();
+        let lines = BufReader::with_capacity(4096, stream).lines().enumerate();
 
         T::init(pvm);
 
