@@ -7,8 +7,8 @@ use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc::SyncSender,
-        Mutex,
     },
+    time::Instant,
 };
 
 use data::{
@@ -111,7 +111,7 @@ pub struct PVM {
     open_cache: HashMap<Uuid, HashSet<Uuid>>,
     name_cache: LendingLibrary<Name, NameNode>,
     pub unparsed_events: HashSet<String>,
-    mem_tick: i64,
+    perf_mon: RefCell<PerfMon>,
 }
 
 pub struct PVMTransaction<'a> {
@@ -468,7 +468,7 @@ impl PVM {
             open_cache: HashMap::new(),
             name_cache: LendingLibrary::new(),
             unparsed_events: HashSet::new(),
-            mem_tick: 0,
+            perf_mon: RefCell::new(PerfMon::new()),
         }
     }
 
@@ -477,56 +477,7 @@ impl PVM {
         ctx_ty: &'static ContextType,
         ctx_cont: HashMap<&'static str, String>,
     ) -> PVMTransaction {
-        self.mem_tick = self.mem_tick + 1;
-        if (self.mem_tick % 10_000) == 0 {
-            lazy_static! {
-                static ref F: Mutex<RefCell<File>> =
-                    Mutex::new(RefCell::new(File::create("./meminfo").unwrap()));
-            };
-
-            let f = F.lock().unwrap();
-            let mut fw = f.borrow_mut();
-
-            writeln!(fw, "Event No: {}", self.mem_tick).unwrap();
-            writeln!(
-                fw,
-                "Uuid_cache: {}",
-                to_human_bytes(size_of_hm(&self.uuid_cache), true)
-            )
-            .unwrap();
-            writeln!(
-                fw,
-                "Node_cache: {}",
-                to_human_bytes(size_of_ll(&self.node_cache), true)
-            )
-            .unwrap();
-            writeln!(
-                fw,
-                "Rel_src_dst_cache: {}",
-                to_human_bytes(size_of_hm(&self.rel_src_dst_cache), true)
-            )
-            .unwrap();
-            writeln!(
-                fw,
-                "Rel_cache: {}",
-                to_human_bytes(size_of_ll(&self.rel_cache), true)
-            )
-            .unwrap();
-            writeln!(
-                fw,
-                "Open_cache: {}",
-                to_human_bytes((self.open_cache.capacity() * 8) as u64, true)
-            )
-            .unwrap();
-            writeln!(
-                fw,
-                "Name_cache: {}",
-                to_human_bytes(size_of_ll(&self.name_cache), true)
-            )
-            .unwrap();
-            fw.flush().unwrap();
-            fw.seek(SeekFrom::Start(0)).unwrap();
-        }
+        self.perf_mon.borrow_mut().tick(self);
         PVMTransaction::start(self, ctx_ty, ctx_cont)
     }
 
@@ -542,4 +493,77 @@ impl PVM {
     }
 
     pub fn shutdown(self) {}
+}
+
+struct PerfMon {
+    events: i64,
+    last_rep: Instant,
+    out_file: File,
+}
+
+impl PerfMon {
+    fn new() -> Self {
+        PerfMon {
+            events: 0,
+            last_rep: Instant::now(),
+            out_file: File::create("./perfinfo").unwrap(),
+        }
+    }
+
+    fn tick(&mut self, pvm: &PVM) {
+        self.events += 1;
+        if (self.events % 10_000) == 0 {
+            let ns_per_ev = (self.last_rep.elapsed() / 10_000).as_nanos();
+            writeln!(self.out_file, "Event No: {}", self.events).unwrap();
+            writeln!(self.out_file, "ns per event: {}", ns_per_ev).unwrap();
+
+            if ns_per_ev < 1_000_000 {
+                let ev_per_s = 1_000_000_000 / ns_per_ev;
+                writeln!(self.out_file, "ev per second: {}", ev_per_s).unwrap();
+            } else {
+                let us_per_ev: u32 = (ns_per_ev / 1_000) as u32;
+                let ev_per_s = 1_000_000.0_f64 / f64::from(us_per_ev);
+                writeln!(self.out_file, "ev per second: {:0.2}", ev_per_s).unwrap();
+            }
+            writeln!(
+                self.out_file,
+                "Uuid_cache: {}",
+                to_human_bytes(size_of_hm(&pvm.uuid_cache), true)
+            )
+            .unwrap();
+            writeln!(
+                self.out_file,
+                "Node_cache: {}",
+                to_human_bytes(size_of_ll(&pvm.node_cache), true)
+            )
+            .unwrap();
+            writeln!(
+                self.out_file,
+                "Rel_src_dst_cache: {}",
+                to_human_bytes(size_of_hm(&pvm.rel_src_dst_cache), true)
+            )
+            .unwrap();
+            writeln!(
+                self.out_file,
+                "Rel_cache: {}",
+                to_human_bytes(size_of_ll(&pvm.rel_cache), true)
+            )
+            .unwrap();
+            writeln!(
+                self.out_file,
+                "Open_cache: {}",
+                to_human_bytes((pvm.open_cache.capacity() * 8) as u64, true)
+            )
+            .unwrap();
+            writeln!(
+                self.out_file,
+                "Name_cache: {}",
+                to_human_bytes(size_of_ll(&pvm.name_cache), true)
+            )
+            .unwrap();
+            self.out_file.flush().unwrap();
+            self.out_file.seek(SeekFrom::Start(0)).unwrap();
+            self.last_rep = Instant::now();
+        }
+    }
 }

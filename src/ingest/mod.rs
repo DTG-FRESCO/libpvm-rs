@@ -74,7 +74,7 @@ pub fn ingest_stream<R: Read, T: Parseable>(stream: R, pvm: &mut PVM) {
             })
             .collect_into_vec(&mut post_vec);
         for (n, tr) in post_vec.drain(..) {
-            if let Some(mut tr) = tr {
+            if let Some(tr) = tr {
                 if let Err(e) = tr.parse(pvm) {
                     eprintln!("Line: {}", n + 1);
                     eprintln!("PVM Parsing error: {}", e);
