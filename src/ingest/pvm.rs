@@ -499,6 +499,7 @@ impl PVM {
 struct PerfMon {
     events: i64,
     last_rep: Instant,
+    start: Instant,
     out_file: File,
 }
 
@@ -507,6 +508,7 @@ impl PerfMon {
         PerfMon {
             events: 0,
             last_rep: Instant::now(),
+            start: Instant::now(),
             out_file: File::create("./perfinfo").unwrap(),
         }
     }
@@ -515,12 +517,25 @@ impl PerfMon {
         self.events += 1;
         if (self.events % 10_000) == 0 {
             let t_step = self.last_rep.elapsed() / 10_000;
+            let t_total = self.start.elapsed() / self.events as u32;
             writeln!(self.out_file, "Event No: {}", self.events).unwrap();
             writeln!(self.out_file, "per event time: {}", format_duration(t_step)).unwrap();
             writeln!(
                 self.out_file,
                 "ev per second: {:0.2}",
                 Duration::new(1, 0).div_duration_f64(t_step)
+            )
+            .unwrap();
+            writeln!(
+                self.out_file,
+                "per event time (avg): {}",
+                format_duration(t_total)
+            )
+            .unwrap();
+            writeln!(
+                self.out_file,
+                "ev per second (avg): {:0.2}",
+                Duration::new(1, 0).div_duration_f64(t_total)
             )
             .unwrap();
             writeln!(
