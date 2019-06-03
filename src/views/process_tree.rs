@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{Seek, SeekFrom, Write},
+    io::Write,
     sync::{mpsc::Receiver, Arc},
     thread,
 };
@@ -9,7 +9,7 @@ use std::{
 use crate::{
     cfg,
     data::{
-        node_types::{Node, PVMDataType},
+        node_types::{CtxNode, Node, PVMDataType},
         rel_types::Rel,
         HasDst, HasID, HasSrc, ID,
     },
@@ -17,82 +17,26 @@ use crate::{
 };
 
 use maplit::hashmap;
-use serde_json::json;
+use serde_json::to_writer;
 
-trait WriteMap: Send {
-    fn write_node(&mut self, id: ID, label: &str);
-    fn write_rel(&mut self, src: ID, dst: ID);
-}
-
-struct DotFile<W: Write + Send + Seek>(W);
-
-impl<W: Write + Send + Seek> DotFile<W> {
-    fn new(mut f: W) -> Self {
-        writeln!(f, "digraph {{").unwrap();
-        write!(f, "}}").unwrap();
-        f.flush().unwrap();
-        DotFile(f)
-    }
-}
-
-impl<W: Write + Send + Seek> WriteMap for DotFile<W> {
-    fn write_node(&mut self, id: ID, label: &str) {
-        self.0.seek(SeekFrom::Current(-1)).unwrap();
-        writeln!(
-            self.0,
-            "\"{}\" [label=\"{}\"];",
-            id.inner(),
-            label.replace("\"", "\\\"")
-        )
-        .unwrap();
-        write!(self.0, "}}").unwrap();
-        self.0.flush().unwrap();
-    }
-
-    fn write_rel(&mut self, src: ID, dst: ID) {
-        self.0.seek(SeekFrom::Current(-1)).unwrap();
-        writeln!(self.0, "\"{}\"  -> \"{}\";", src.inner(), dst.inner()).unwrap();
-        write!(self.0, "}}").unwrap();
-        self.0.flush().unwrap();
-    }
-}
-
-struct JSONFile<W: Write + Send>(W);
-
-impl<W: Write + Send> JSONFile<W> {
-    fn new(f: W) -> Self {
-        JSONFile(f)
-    }
-}
-
-impl<W: Write + Send> WriteMap for JSONFile<W> {
-    fn write_node(&mut self, id: ID, label: &str) {
-        writeln!(
-            self.0,
-            "{}",
-            json!({
-                "type": "node",
-                "id": id.inner(),
-                "label": label,
-            })
-        )
-        .unwrap();
-        self.0.flush().unwrap();
-    }
-
-    fn write_rel(&mut self, src: ID, dst: ID) {
-        writeln!(
-            self.0,
-            "{}",
-            json!({
-                "type": "rel",
-                "src": src.inner(),
-                "dst": dst.inner(),
-            })
-        )
-        .unwrap();
-        self.0.flush().unwrap();
-    }
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+enum Record<'a> {
+    Node {
+        id: ID,
+        cmd: Option<&'a str>,
+        host: Option<i32>,
+        trace_idx: Option<&'a str>,
+        ts: Option<&'a str>,
+    },
+    Edge {
+        src: ID,
+        dst: ID,
+    },
+    HostVal {
+        uuid: &'a str,
+        idx: i32,
+    },
 }
 
 #[derive(Debug)]
@@ -125,8 +69,7 @@ impl View for ProcTreeView {
     }
     fn params(&self) -> HashMap<&'static str, &'static str> {
         hashmap!("output" => "Output file location",
-                 "meta_key" => "Metadata key for process name",
-                 "fmt" => "Output format {Json, Dot}")
+                 "meta_key" => "Metadata key for process name")
     }
     fn create(
         &self,
@@ -137,40 +80,75 @@ impl View for ProcTreeView {
     ) -> ViewInst {
         let path = params.get_or_def("output", "./proc_tree.json");
         let meta_key = params.get_or_def("meta_key", "cmdline").to_string();
-        let fmt = params.get_or_def("fmt", "json");
-        let mut out: Box<WriteMap> = if fmt == "json" {
-            Box::new(JSONFile::new(File::create(path).unwrap()))
-        } else if fmt == "dot" {
-            Box::new(DotFile::new(File::create(path).unwrap()))
-        } else {
-            unimplemented!()
-        };
+        let mut out = File::create(path).unwrap();
         let thr = thread::spawn(move || {
             let mut nodes = HashMap::new();
+            let mut ctx_store: HashMap<ID, CtxNode> = HashMap::new();
+            let mut host_map = HashMap::new();
+            let mut host_count = 0;
             for tr in stream {
                 match *tr {
-                    DBTr::CreateNode(ref n) | DBTr::UpdateNode(ref n) => {
-                        if let Node::Data(n) = n {
-                            if *n.pvm_ty() == PVMDataType::Actor {
-                                let id = n.get_db_id();
-                                let cmd = n.meta.cur(&meta_key);
-                                if !nodes.contains_key(&id) || neq(&cmd, &nodes[&id]) {
-                                    let cmd = cmd.map(|v| v.to_string());
-                                    if let Some(cmd) = &cmd {
-                                        out.write_node(n.get_db_id(), cmd);
+                    DBTr::CreateNode(ref n) | DBTr::UpdateNode(ref n) => match n {
+                        Node::Data(n) if *n.pvm_ty() == PVMDataType::Actor => {
+                            let id = n.get_db_id();
+                            let cmd = n.meta.cur(&meta_key);
+                            if !nodes.contains_key(&id) || neq(&cmd, &nodes[&id]) {
+                                let ctx = ctx_store.get(&n.ctx());
+                                let trace_idx =
+                                    ctx.and_then(|c| c.cont.get("trace_offset")).map(|v| &v[..]);
+                                let ts = ctx.and_then(|c| c.cont.get("time")).map(|v| &v[..]);
+                                let host = ctx.and_then(|c| c.cont.get("host"));
+
+                                let host = if let Some(h) = host {
+                                    if host_map.contains_key(h) {
+                                        Some(host_map[h])
                                     } else {
-                                        out.write_node(n.get_db_id(), "???");
+                                        host_count += 1;
+                                        host_map.insert(h.clone(), host_count);
+                                        to_writer(
+                                            &mut out,
+                                            &Record::HostVal {
+                                                uuid: h,
+                                                idx: host_count,
+                                            },
+                                        )
+                                        .unwrap();
+                                        writeln!(out).unwrap();
+                                        Some(host_count)
                                     }
-                                    nodes.insert(id, cmd);
-                                }
+                                } else {
+                                    None
+                                };
+
+                                to_writer(
+                                    &mut out,
+                                    &Record::Node {
+                                        id,
+                                        cmd,
+                                        host,
+                                        trace_idx,
+                                        ts,
+                                    },
+                                )
+                                .unwrap();
+                                writeln!(out).unwrap();
+                                out.flush().unwrap();
+                                nodes.insert(id, cmd.map(|v| v.to_string()));
                             }
                         }
-                    }
+                        Node::Ctx(n) => {
+                            ctx_store.insert(n.get_db_id(), n.clone());
+                        }
+                        _ => {}
+                    },
                     DBTr::CreateRel(ref r) => {
                         if let Rel::Inf(r) = r {
-                            if nodes.contains_key(&r.get_src()) && nodes.contains_key(&r.get_dst())
-                            {
-                                out.write_rel(r.get_src(), r.get_dst());
+                            let src = r.get_src();
+                            let dst = r.get_dst();
+                            if nodes.contains_key(&src) && nodes.contains_key(&dst) {
+                                to_writer(&mut out, &Record::Edge { src, dst }).unwrap();
+                                writeln!(out).unwrap();
+                                out.flush().unwrap();
                             }
                         }
                     }
