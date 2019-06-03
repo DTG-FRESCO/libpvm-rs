@@ -1,6 +1,7 @@
 #![feature(box_patterns)]
 #![feature(nll)]
 #![feature(specialization)]
+#![feature(duration_float)]
 
 pub extern crate pvm_cfg as cfg;
 pub extern crate pvm_data as data;
@@ -9,6 +10,7 @@ pub extern crate pvm_views as view;
 extern crate bytesize;
 extern crate chrono;
 extern crate either;
+extern crate humantime;
 #[macro_use]
 extern crate lazy_static;
 extern crate lending_library;

@@ -8,7 +8,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         mpsc::SyncSender,
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use data::{
@@ -23,6 +23,7 @@ use view::DBTr;
 
 use bytesize::to_string as to_human_bytes;
 use either::Either;
+use humantime::format_duration;
 use lending_library::{LendingLibrary, Loan};
 use transactions::{hash_wrap::HashWrap, lending_wrap::LendingWrap};
 use uuid::Uuid;
@@ -513,18 +514,15 @@ impl PerfMon {
     fn tick(&mut self, pvm: &PVM) {
         self.events += 1;
         if (self.events % 10_000) == 0 {
-            let ns_per_ev = (self.last_rep.elapsed() / 10_000).as_nanos();
+            let t_step = self.last_rep.elapsed() / 10_000;
             writeln!(self.out_file, "Event No: {}", self.events).unwrap();
-            writeln!(self.out_file, "ns per event: {}", ns_per_ev).unwrap();
-
-            if ns_per_ev < 1_000_000 {
-                let ev_per_s = 1_000_000_000 / ns_per_ev;
-                writeln!(self.out_file, "ev per second: {}", ev_per_s).unwrap();
-            } else {
-                let us_per_ev: u32 = (ns_per_ev / 1_000) as u32;
-                let ev_per_s = 1_000_000.0_f64 / f64::from(us_per_ev);
-                writeln!(self.out_file, "ev per second: {:0.2}", ev_per_s).unwrap();
-            }
+            writeln!(self.out_file, "per event time: {}", format_duration(t_step)).unwrap();
+            writeln!(
+                self.out_file,
+                "ev per second: {:0.2}",
+                Duration::new(1, 0).div_duration_f64(t_step)
+            )
+            .unwrap();
             writeln!(
                 self.out_file,
                 "Uuid_cache: {}",
