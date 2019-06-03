@@ -86,6 +86,7 @@ impl View for ProcTreeView {
             .spawn(move || {
                 let mut nodes = HashMap::new();
                 let mut ctx_store: HashMap<ID, CtxNode> = HashMap::new();
+                let mut cur_ctx: Option<CtxNode> = None;
                 let mut host_map = HashMap::new();
                 let mut host_count = 0;
                 for tr in stream {
@@ -95,6 +96,12 @@ impl View for ProcTreeView {
                                 let id = n.get_db_id();
                                 let cmd = n.meta.cur(&meta_key);
                                 if !nodes.contains_key(&id) || neq(&cmd, &nodes[&id]) {
+                                    if let Some(c) = &cur_ctx {
+                                        if c.get_db_id() == n.ctx() {
+                                            ctx_store
+                                                .insert(c.get_db_id(), cur_ctx.take().unwrap());
+                                        }
+                                    }
                                     let ctx = ctx_store.get(&n.ctx());
                                     let trace_idx = ctx
                                         .and_then(|c| c.cont.get("trace_offset"))
@@ -140,7 +147,7 @@ impl View for ProcTreeView {
                                 }
                             }
                             Node::Ctx(n) => {
-                                ctx_store.insert(n.get_db_id(), n.clone());
+                                cur_ctx = Some(n.clone());
                             }
                             _ => {}
                         },
