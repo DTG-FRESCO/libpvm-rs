@@ -162,7 +162,7 @@ impl<'a> PVMTransaction<'a> {
         if self.db.len() == 0 {
         } else {
             self.id.commit();
-            self.db.create_node(self.ctx_node);
+            self.db._create_node_head(self.ctx_node);
             self.db.commit();
         }
     }

@@ -42,6 +42,10 @@ impl<'a> DBStore<'a> {
         self.insert(DBTr::CreateNode(node.enumerate()));
     }
 
+    pub fn _create_node_head<N: Enumerable<Target = Node>>(&mut self, node: N) {
+        self.ops.insert(0, DBTr::CreateNode(node.enumerate()));
+    }
+
     pub fn create_rel<R: Enumerable<Target = Rel>>(&mut self, rel: R) {
         self.insert(DBTr::CreateRel(rel.enumerate()));
     }
