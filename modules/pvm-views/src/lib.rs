@@ -9,9 +9,10 @@ use std::{
     thread::{spawn, JoinHandle},
 };
 
-use data::{node_types::Node, rel_types::Rel};
-
-use cfg::Config;
+use crate::{
+    cfg::Config,
+    data::{node_types::Node, rel_types::Rel},
+};
 
 #[derive(Clone, Debug)]
 pub enum DBTr {

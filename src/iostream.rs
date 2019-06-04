@@ -1,10 +1,3 @@
-use nix::{
-    self,
-    sys::{
-        socket::{getsockname, getsockopt, sockopt, SockAddr, SockType},
-        stat::fstat,
-    },
-};
 use std::{
     error::Error,
     fs,
@@ -13,6 +6,14 @@ use std::{
     os::unix::{
         self,
         io::{FromRawFd, RawFd},
+    },
+};
+
+use nix::{
+    self,
+    sys::{
+        socket::{getsockname, getsockopt, sockopt, SockAddr, SockType},
+        stat::fstat,
     },
 };
 

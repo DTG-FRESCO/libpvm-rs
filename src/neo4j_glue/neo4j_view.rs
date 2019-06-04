@@ -1,16 +1,18 @@
-use neo4j::{Neo4jDB, Neo4jOperations, Value};
-
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::{mpsc::Receiver, Arc},
     thread,
 };
 
-use data::ID;
+use crate::{
+    cfg::Config,
+    data::ID,
+    neo4j_glue::{ToDBNode, ToDBRel},
+    view::*,
+};
 
-use cfg::Config;
-use neo4j_glue::{ToDBNode, ToDBRel};
-use view::*;
+use maplit::hashmap;
+use neo4j::{Neo4jDB, Neo4jOperations, Value};
 
 const BATCH_SIZE: usize = 1000;
 const TR_SIZE: usize = 100_000;
@@ -78,7 +80,7 @@ impl View for Neo4JView {
 
             tr.run_unchecked(
                 "MERGE (:DBInfo {pvm_version: 2, source: $src})",
-                hashmap!("src" => Value::from(format!("libPVM-{}", ::VERSION))),
+                hashmap!("src" => Value::from(format!("libPVM-{}", crate::VERSION))),
             );
 
             tr.commit_and_refresh().unwrap();

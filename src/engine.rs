@@ -1,16 +1,18 @@
-use ingest::{ingest_stream, pvm::PVM, Parseable};
-use iostream::IOStream;
-use neo4j_glue::Neo4JView;
-use query::low::count_processes;
 use std::{borrow::Cow, sync::mpsc};
 
-use cfg::Config;
-use view::{View, ViewCoordinator, ViewInst, ViewParams};
-use views::{CSVView, ProcTreeView};
+use crate::{
+    cfg::Config,
+    ingest::{ingest_stream, pvm::PVM, Parseable},
+    iostream::IOStream,
+    neo4j_glue::Neo4JView,
+    query::low::count_processes,
+    trace::cadets::TraceEvent,
+    view::{View, ViewCoordinator, ViewInst, ViewParams},
+    views::{CSVView, ProcTreeView},
+};
 
+use maplit::hashmap;
 use neo4j::Neo4jDB;
-
-use trace::cadets::TraceEvent;
 
 type EngineResult<T> = Result<T, Cow<'static, str>>;
 

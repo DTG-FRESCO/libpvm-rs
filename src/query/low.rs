@@ -1,5 +1,6 @@
 //use data::node_types::DataNode;
 
+use maplit::hashmap;
 use neo4j::{Neo4jDB, Neo4jOperations};
 
 //use neo4j_glue::{FromDB, IntoVal};

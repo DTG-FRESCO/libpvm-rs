@@ -1,7 +1,9 @@
 use std::{mem::swap, sync::mpsc::SyncSender};
 
-use data::{node_types::Node, rel_types::Rel, Enumerable, HasID};
-use view::DBTr;
+use crate::{
+    data::{node_types::Node, rel_types::Rel, Enumerable, HasID},
+    view::DBTr,
+};
 
 pub struct DB {
     persist_pipe: SyncSender<DBTr>,

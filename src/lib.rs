@@ -1,32 +1,11 @@
 #![feature(box_patterns)]
-#![feature(nll)]
 #![feature(specialization)]
 #![feature(duration_float)]
+#![feature(custom_attribute)]
 
 pub extern crate pvm_cfg as cfg;
 pub extern crate pvm_data as data;
 pub extern crate pvm_views as view;
-
-extern crate bytesize;
-extern crate chrono;
-extern crate either;
-extern crate humantime;
-#[macro_use]
-extern crate lazy_static;
-extern crate lending_library;
-extern crate libc;
-#[macro_use]
-extern crate maplit;
-extern crate neo4j;
-extern crate rayon;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate nix;
-extern crate serde_json;
-extern crate transactions;
-extern crate uuid;
-extern crate zip;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

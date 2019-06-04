@@ -8,17 +8,19 @@ use std::{
     thread,
 };
 
-use zip::{write::FileOptions, ZipWriter};
-
-use cfg::Config;
-use data::{
-    node_types::{NameNode, Node, PVMDataType::*, SchemaNode},
-    rel_types::Rel,
-    HasDst, HasID, HasSrc, ID,
+use crate::{
+    cfg::Config,
+    data::{
+        node_types::{NameNode, Node, PVMDataType::*, SchemaNode},
+        rel_types::Rel,
+        HasDst, HasID, HasSrc, ID,
+    },
+    view::*,
 };
-use view::*;
 
+use maplit::hashmap;
 use serde_json;
+use zip::{write::FileOptions, ZipWriter};
 
 const HYDRATE_SH_PRE: &str = r#"#! /bin/bash
 export NEO4J_USER=neo4j
@@ -91,7 +93,7 @@ impl View for CSVView {
             out.start_file("db/n_dbinfo.csv", FileOptions::default())
                 .unwrap();
             writeln!(out, ":LABEL,pvm_version:int,source").unwrap();
-            writeln!(out, "DBInfo,2,libPVM-{}", ::VERSION).unwrap();
+            writeln!(out, "DBInfo,2,libPVM-{}", crate::VERSION).unwrap();
 
             let mut nodes: HashMap<Cow<'static, str>, HashMap<ID, Node>> = HashMap::new();
             let mut rels: HashMap<Cow<'static, str>, HashMap<ID, Rel>> = HashMap::new();

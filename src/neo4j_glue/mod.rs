@@ -1,22 +1,20 @@
-mod neo4j_view;
-
-pub use self::neo4j_view::Neo4JView;
-
 use std::{borrow::Cow, collections::HashMap, mem};
 
-use neo4j::Value;
-
-use serde_json;
-
-use data::{
+use crate::data::{
     node_types::{NameNode, Node, PVMDataType, PVMDataType::*, SchemaNode},
     rel_types::{PVMOps, Rel},
     HasDst, HasID, HasSrc, MetaStore, ID,
 };
 
+use chrono::{DateTime, Utc};
+use maplit::hashmap;
+use neo4j::Value;
+use serde_json;
 use uuid::Uuid;
 
-use chrono::{DateTime, Utc};
+mod neo4j_view;
+
+pub use self::neo4j_view::Neo4JView;
 
 pub trait Val2UUID {
     fn into_uuid(self) -> Option<Uuid>;

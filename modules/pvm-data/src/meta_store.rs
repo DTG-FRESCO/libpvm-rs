@@ -1,6 +1,8 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use super::{node_types::ConcreteType, ID};
+use crate::{node_types::ConcreteType, ID};
+
+use serde::{Deserialize, Serialize};
 
 type MetaEntry = (String, ID);
 

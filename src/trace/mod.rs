@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use std::fmt;
+
 use uuid::Uuid;
 
 macro_rules! field {

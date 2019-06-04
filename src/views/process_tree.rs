@@ -17,6 +17,7 @@ use crate::{
 };
 
 use maplit::hashmap;
+use serde::Serialize;
 use serde_json::to_writer;
 
 #[derive(Debug, Serialize)]

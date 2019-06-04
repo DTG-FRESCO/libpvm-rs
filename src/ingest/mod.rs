@@ -1,17 +1,16 @@
-mod db;
-pub mod pvm;
-
 use std::{
     fmt::Display,
     io::{BufRead, BufReader, Read},
 };
 
+use self::pvm::{PVMError, PVM};
+
 use rayon::prelude::*;
+use serde::de::DeserializeOwned;
 use serde_json;
 
-use serde::de::DeserializeOwned;
-
-use self::pvm::{PVMError, PVM};
+mod db;
+pub mod pvm;
 
 const BATCH_SIZE: usize = 0x10_000;
 

@@ -1,5 +1,4 @@
-use iostream::IOStream;
-use libc::{c_char, malloc};
+#![allow(unused_attributes)]
 
 use std::{
     any::Any,
@@ -10,8 +9,13 @@ use std::{
     ptr, slice,
 };
 
-use cfg::{self, AdvancedConfig, CfgMode};
-use engine;
+use crate::{
+    cfg::{self, AdvancedConfig, CfgMode},
+    engine,
+    iostream::IOStream,
+};
+
+use libc::{c_char, malloc};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]

@@ -1,9 +1,11 @@
-use super::{meta_store::MetaStore, Enumerable, HasID, ID};
 use std::{
     collections::HashMap,
     fmt,
     hash::{Hash, Hasher},
 };
+
+use crate::{meta_store::MetaStore, Enumerable, HasID, ID};
+
 use uuid::Uuid;
 
 #[derive(Debug, Eq)]
