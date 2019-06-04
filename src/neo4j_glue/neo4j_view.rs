@@ -53,7 +53,7 @@ impl View for Neo4JView {
             let pass = params.get_or_def("pass", &cfg.db_password);
             Neo4jDB::connect(addr, user, pass).unwrap()
         };
-        let thr = thread::spawn(move || {
+        let thr = thread::Builder::new().name("Neo4jView".to_string()).spawn(move || {
             let mut nodes = CreateNodes::new();
             let mut edges = CreateRels::new();
             let mut up_node = UpdateNodes::new();
@@ -143,7 +143,7 @@ impl View for Neo4JView {
             println!("Neo4J Batches Issued: {}", btc * 4);
             println!("Neo4J Transactions Issued: {}", trs);
             println!("Rel Updates: {}, Absorbed into Nodes: {}, Absorbed into other updates: {}, Finally executed: {}", rel_up_base, rel_up_base - rel_up_node, rel_up_node - rel_up_rel, rel_up_rel);
-        });
+        }).unwrap();
         ViewInst {
             id,
             vtype: self.id,

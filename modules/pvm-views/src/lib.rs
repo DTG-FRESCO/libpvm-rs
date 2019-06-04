@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     sync::{mpsc, Arc, Mutex},
-    thread::{spawn, JoinHandle},
+    thread::{Builder as ThreadBuilder, JoinHandle},
 };
 
 use crate::{
@@ -93,18 +93,21 @@ impl ViewCoordinator {
             Arc::new(Mutex::new(Vec::new()));
         let thread_streams = streams.clone();
         ViewCoordinator {
-            thread: spawn(move || {
-                for evt in recv {
-                    {
-                        let v = Arc::new(evt);
-                        let mut strs = thread_streams.lock().unwrap();
-                        for stream in strs.iter_mut() {
-                            stream.send(v.clone()).unwrap();
+            thread: ThreadBuilder::new()
+                .name("ViewCoordinator".to_string())
+                .spawn(move || {
+                    for evt in recv {
+                        {
+                            let v = Arc::new(evt);
+                            let mut strs = thread_streams.lock().unwrap();
+                            for stream in strs.iter_mut() {
+                                stream.send(v.clone()).unwrap();
+                            }
+                            drop(v);
                         }
-                        drop(v);
                     }
-                }
-            }),
+                })
+                .unwrap(),
             views: HashMap::new(),
             insts: Vec::new(),
             streams,

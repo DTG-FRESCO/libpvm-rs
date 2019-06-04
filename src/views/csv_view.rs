@@ -89,162 +89,167 @@ impl View for CSVView {
     ) -> ViewInst {
         let path = params.get_or_def("path", "./prov_csv.zip");
         let mut out = ZipWriter::new(File::create(path).unwrap());
-        let thr = thread::spawn(move || {
-            out.start_file("db/n_dbinfo.csv", FileOptions::default())
+        let thr = thread::Builder::new()
+            .name("CSVView".to_string())
+            .spawn(move || {
+                out.start_file("db/n_dbinfo.csv", FileOptions::default())
+                    .unwrap();
+                writeln!(out, ":LABEL,pvm_version:int,source").unwrap();
+                writeln!(out, "DBInfo,2,libPVM-{}", crate::VERSION).unwrap();
+
+                let mut nodes: HashMap<Cow<'static, str>, HashMap<ID, Node>> = HashMap::new();
+                let mut rels: HashMap<Cow<'static, str>, HashMap<ID, Rel>> = HashMap::new();
+
+                for evt in stream {
+                    match *evt {
+                        DBTr::CreateNode(ref node) | DBTr::UpdateNode(ref node) => {
+                            nodes
+                                .entry(node.fname())
+                                .or_insert_with(HashMap::new)
+                                .insert(node.get_db_id(), node.clone());
+                        }
+                        DBTr::CreateRel(ref rel) | DBTr::UpdateRel(ref rel) => {
+                            rels.entry(rel.fname())
+                                .or_insert_with(HashMap::new)
+                                .insert(rel.get_db_id(), rel.clone());
+                        }
+                    }
+                }
+
+                out.start_file(
+                    "db/hydrate.sh",
+                    FileOptions::default().unix_permissions(0o755),
+                )
                 .unwrap();
-            writeln!(out, ":LABEL,pvm_version:int,source").unwrap();
-            writeln!(out, "DBInfo,2,libPVM-{}", crate::VERSION).unwrap();
-
-            let mut nodes: HashMap<Cow<'static, str>, HashMap<ID, Node>> = HashMap::new();
-            let mut rels: HashMap<Cow<'static, str>, HashMap<ID, Rel>> = HashMap::new();
-
-            for evt in stream {
-                match *evt {
-                    DBTr::CreateNode(ref node) | DBTr::UpdateNode(ref node) => {
-                        nodes
-                            .entry(node.fname())
-                            .or_insert_with(HashMap::new)
-                            .insert(node.get_db_id(), node.clone());
-                    }
-                    DBTr::CreateRel(ref rel) | DBTr::UpdateRel(ref rel) => {
-                        rels.entry(rel.fname())
-                            .or_insert_with(HashMap::new)
-                            .insert(rel.get_db_id(), rel.clone());
-                    }
+                {
+                    write!(out, "{}", HYDRATE_SH_PRE).unwrap();
+                    let mut options = vec![
+                        "--id-type=INTEGER".to_string(),
+                        "--multiline-fields=true".to_string(),
+                        "--nodes n_dbinfo.csv".to_string(),
+                    ];
+                    options.extend(nodes.keys().map(|k| format!("--nodes {}", k)));
+                    options.extend(rels.keys().map(|k| format!("--relationships {}", k)));
+                    writeln!(out, "neo4j-admin import {}", options.join(" "),).unwrap();
+                    write!(out, "{}", HYDRATE_SH_POST).unwrap();
                 }
-            }
 
-            out.start_file(
-                "db/hydrate.sh",
-                FileOptions::default().unix_permissions(0o755),
-            )
-            .unwrap();
-            {
-                write!(out, "{}", HYDRATE_SH_PRE).unwrap();
-                let mut options = vec![
-                    "--id-type=INTEGER".to_string(),
-                    "--multiline-fields=true".to_string(),
-                    "--nodes n_dbinfo.csv".to_string(),
-                ];
-                options.extend(nodes.keys().map(|k| format!("--nodes {}", k)));
-                options.extend(rels.keys().map(|k| format!("--relationships {}", k)));
-                writeln!(out, "neo4j-admin import {}", options.join(" "),).unwrap();
-                write!(out, "{}", HYDRATE_SH_POST).unwrap();
-            }
-
-            for (fname, rlist) in rels {
-                out.start_file(format!("db/{}", fname), FileOptions::default())
-                    .unwrap();
-                for (i, r) in rlist.values().enumerate() {
-                    if i == 0 {
-                        write!(out, "db_id,:START_ID,:END_ID,:TYPE").unwrap();
-                        match r {
-                            Rel::Inf(_) => {
-                                writeln!(out, ",pvm_op,ctx:long,byte_count:long").unwrap()
+                for (fname, rlist) in rels {
+                    out.start_file(format!("db/{}", fname), FileOptions::default())
+                        .unwrap();
+                    for (i, r) in rlist.values().enumerate() {
+                        if i == 0 {
+                            write!(out, "db_id,:START_ID,:END_ID,:TYPE").unwrap();
+                            match r {
+                                Rel::Inf(_) => {
+                                    writeln!(out, ",pvm_op,ctx:long,byte_count:long").unwrap()
+                                }
+                                Rel::Named(_) => writeln!(out, ",start:long,end:long").unwrap(),
                             }
-                            Rel::Named(_) => writeln!(out, ",start:long,end:long").unwrap(),
                         }
-                    }
-                    write!(
-                        out,
-                        "{},{},{},{}",
-                        format_id(r.get_db_id()),
-                        format_id(r.get_src()),
-                        format_id(r.get_dst()),
-                        r._lab(),
-                    )
-                    .unwrap();
-                    match r {
-                        Rel::Inf(i) => writeln!(
+                        write!(
                             out,
-                            ",{:?},\"{}\",{}",
-                            i.pvm_op,
-                            format_id(i.ctx),
-                            i.byte_count
+                            "{},{},{},{}",
+                            format_id(r.get_db_id()),
+                            format_id(r.get_src()),
+                            format_id(r.get_dst()),
+                            r._lab(),
                         )
-                        .unwrap(),
-                        Rel::Named(n) => {
-                            writeln!(out, ",{},\"{}\"", format_id(n.start), format_id(n.end),)
-                                .unwrap()
+                        .unwrap();
+                        match r {
+                            Rel::Inf(i) => writeln!(
+                                out,
+                                ",{:?},\"{}\",{}",
+                                i.pvm_op,
+                                format_id(i.ctx),
+                                i.byte_count
+                            )
+                            .unwrap(),
+                            Rel::Named(n) => {
+                                writeln!(out, ",{},\"{}\"", format_id(n.start), format_id(n.end),)
+                                    .unwrap()
+                            }
                         }
                     }
                 }
-            }
-            for (fname, nlist) in nodes {
-                out.start_file(format!("db/{}", fname), FileOptions::default())
-                    .unwrap();
-                for (i, n) in nlist.values().enumerate() {
-                    if i == 0 {
-                        write!(out, "db_id:ID,:LABEL").unwrap();
+                for (fname, nlist) in nodes {
+                    out.start_file(format!("db/{}", fname), FileOptions::default())
+                        .unwrap();
+                    for (i, n) in nlist.values().enumerate() {
+                        if i == 0 {
+                            write!(out, "db_id:ID,:LABEL").unwrap();
+                            match n {
+                                Node::Data(d) => {
+                                    write!(out, ",uuid,ty,ctx:long,meta_hist").unwrap();
+                                    for k in d.ty().props.keys() {
+                                        write!(out, ",{}", k).unwrap();
+                                    }
+                                    writeln!(out).unwrap();
+                                }
+                                Node::Ctx(c) => {
+                                    write!(out, ",ty").unwrap();
+                                    for f in &c.ty().props {
+                                        write!(out, ",{}", f).unwrap();
+                                    }
+                                    writeln!(out).unwrap();
+                                }
+                                Node::Name(n) => match n {
+                                    NameNode::Path(..) => writeln!(out, ",path").unwrap(),
+                                    NameNode::Net(..) => writeln!(out, ",addr,port:int").unwrap(),
+                                },
+                                Node::Schema(_) => {
+                                    writeln!(out, ",name,base,props:string[]").unwrap()
+                                }
+                            }
+                        }
+                        write!(out, "{},{}", format_id(n.get_db_id()), n._lab()).unwrap();
                         match n {
                             Node::Data(d) => {
-                                write!(out, ",uuid,ty,ctx:long,meta_hist").unwrap();
+                                write!(out, ",{},{},{}", d.uuid(), d.ty().name, format_id(d.ctx()))
+                                    .unwrap();
+                                write_str(&mut out, &serde_json::to_string(&d.meta).unwrap());
                                 for k in d.ty().props.keys() {
-                                    write!(out, ",{}", k).unwrap();
+                                    let val = d.meta.cur(k);
+                                    match val {
+                                        Some(v) => write_str(&mut out, v),
+                                        None => write!(out, ",").unwrap(),
+                                    }
                                 }
-                                writeln!(out).unwrap();
                             }
                             Node::Ctx(c) => {
-                                write!(out, ",ty").unwrap();
+                                write!(out, ",{}", c.ty().name).unwrap();
                                 for f in &c.ty().props {
-                                    write!(out, ",{}", f).unwrap();
+                                    write!(out, ",{}", c.cont[f]).unwrap();
                                 }
                                 writeln!(out).unwrap();
                             }
                             Node::Name(n) => match n {
-                                NameNode::Path(..) => writeln!(out, ",path").unwrap(),
-                                NameNode::Net(..) => writeln!(out, ",addr,port:int").unwrap(),
-                            },
-                            Node::Schema(_) => writeln!(out, ",name,base,props:string[]").unwrap(),
-                        }
-                    }
-                    write!(out, "{},{}", format_id(n.get_db_id()), n._lab()).unwrap();
-                    match n {
-                        Node::Data(d) => {
-                            write!(out, ",{},{},{}", d.uuid(), d.ty().name, format_id(d.ctx()))
-                                .unwrap();
-                            write_str(&mut out, &serde_json::to_string(&d.meta).unwrap());
-                            for k in d.ty().props.keys() {
-                                let val = d.meta.cur(k);
-                                match val {
-                                    Some(v) => write_str(&mut out, v),
-                                    None => write!(out, ",").unwrap(),
+                                NameNode::Path(_, path) => {
+                                    write_str(&mut out, path);
                                 }
-                            }
+                                NameNode::Net(_, addr, port) => {
+                                    write_str(&mut out, addr);
+                                    write!(out, ",{}", port).unwrap();
+                                }
+                            },
+                            Node::Schema(s) => match s {
+                                SchemaNode::Data(_, ty) => {
+                                    write_str(&mut out, ty.name);
+                                    let v: Vec<&str> = ty.props.keys().cloned().collect();
+                                    write!(out, ",{},{}", ty.pvm_ty, v.join(";")).unwrap();
+                                }
+                                SchemaNode::Context(_, ty) => {
+                                    write_str(&mut out, ty.name);
+                                    write!(out, ",Context,{}", ty.props.join(";")).unwrap();
+                                }
+                            },
                         }
-                        Node::Ctx(c) => {
-                            write!(out, ",{}", c.ty().name).unwrap();
-                            for f in &c.ty().props {
-                                write!(out, ",{}", c.cont[f]).unwrap();
-                            }
-                            writeln!(out).unwrap();
-                        }
-                        Node::Name(n) => match n {
-                            NameNode::Path(_, path) => {
-                                write_str(&mut out, path);
-                            }
-                            NameNode::Net(_, addr, port) => {
-                                write_str(&mut out, addr);
-                                write!(out, ",{}", port).unwrap();
-                            }
-                        },
-                        Node::Schema(s) => match s {
-                            SchemaNode::Data(_, ty) => {
-                                write_str(&mut out, ty.name);
-                                let v: Vec<&str> = ty.props.keys().cloned().collect();
-                                write!(out, ",{},{}", ty.pvm_ty, v.join(";")).unwrap();
-                            }
-                            SchemaNode::Context(_, ty) => {
-                                write_str(&mut out, ty.name);
-                                write!(out, ",Context,{}", ty.props.join(";")).unwrap();
-                            }
-                        },
+                        writeln!(out).unwrap();
                     }
-                    writeln!(out).unwrap();
                 }
-            }
-            out.finish().unwrap();
-        });
+                out.finish().unwrap();
+            })
+            .unwrap();
         ViewInst {
             id,
             vtype: self.id,
