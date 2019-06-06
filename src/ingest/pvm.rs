@@ -457,6 +457,18 @@ fn size_of_hm<K, V>(v: &HashMap<K, V>) -> u64 {
     ((v.capacity() * 11 / 10) * (size_of::<K>() + size_of::<V>() + size_of::<u64>())) as u64
 }
 
+fn use_of_ll<K: std::hash::Hash, V>(v: &LendingLibrary<K, V>) -> u64 {
+    use std::mem::size_of;
+
+    (v.len() * (size_of::<K>() + size_of::<V>() + size_of::<u64>() * 2)) as u64
+}
+
+fn use_of_hm<K, V>(v: &HashMap<K, V>) -> u64 {
+    use std::mem::size_of;
+
+    (v.len() * (size_of::<K>() + size_of::<V>() + size_of::<u64>())) as u64
+}
+
 impl PVM {
     pub fn new(db: SyncSender<DBTr>) -> Self {
         PVM {
@@ -542,38 +554,44 @@ impl PerfMon {
             .unwrap();
             writeln!(
                 self.out_file,
-                "Uuid_cache: {}",
-                to_human_bytes(size_of_hm(&pvm.uuid_cache), true)
+                "Uuid_cache:\t\t {} / {}",
+                to_human_bytes(use_of_hm(&pvm.uuid_cache), true),
+                to_human_bytes(size_of_hm(&pvm.uuid_cache), true),
             )
             .unwrap();
             writeln!(
                 self.out_file,
-                "Node_cache: {}",
-                to_human_bytes(size_of_ll(&pvm.node_cache), true)
+                "Node_cache:\t\t {} / {}",
+                to_human_bytes(use_of_ll(&pvm.node_cache), true),
+                to_human_bytes(size_of_ll(&pvm.node_cache), true),
             )
             .unwrap();
             writeln!(
                 self.out_file,
-                "Rel_src_dst_cache: {}",
-                to_human_bytes(size_of_hm(&pvm.rel_src_dst_cache), true)
+                "Rel_src_dst_cache:\t {} / {}",
+                to_human_bytes(use_of_hm(&pvm.rel_src_dst_cache), true),
+                to_human_bytes(size_of_hm(&pvm.rel_src_dst_cache), true),
             )
             .unwrap();
             writeln!(
                 self.out_file,
-                "Rel_cache: {}",
-                to_human_bytes(size_of_ll(&pvm.rel_cache), true)
+                "Rel_cache:\t\t {} / {}",
+                to_human_bytes(use_of_ll(&pvm.rel_cache), true),
+                to_human_bytes(size_of_ll(&pvm.rel_cache), true),
             )
             .unwrap();
             writeln!(
                 self.out_file,
-                "Open_cache: {}",
-                to_human_bytes((pvm.open_cache.capacity() * 8) as u64, true)
+                "Open_cache:\t\t {} / {}",
+                to_human_bytes((pvm.open_cache.len() * 8) as u64, true),
+                to_human_bytes((pvm.open_cache.capacity() * 8) as u64, true),
             )
             .unwrap();
             writeln!(
                 self.out_file,
-                "Name_cache: {}",
-                to_human_bytes(size_of_ll(&pvm.name_cache), true)
+                "Name_cache:\t\t {} / {}",
+                to_human_bytes(use_of_ll(&pvm.name_cache), true),
+                to_human_bytes(size_of_ll(&pvm.name_cache), true),
             )
             .unwrap();
             self.out_file.flush().unwrap();
