@@ -8,7 +8,7 @@ use crate::{
     query::low::count_processes,
     trace::cadets::TraceEvent,
     view::{View, ViewCoordinator, ViewInst, ViewParams},
-    views::{CSVView, ProcTreeView},
+    views::{CSVView, DBGView, ProcTreeView},
 };
 
 use maplit::hashmap;
@@ -51,6 +51,7 @@ impl Engine {
             view_ctrl.create_view_inst(neo4j_view_id, hashmap!(), &self.cfg);
         }
         view_ctrl.register_view_type::<CSVView>();
+        view_ctrl.register_view_type::<DBGView>();
         view_ctrl.register_view_type::<ProcTreeView>();
         self.pipeline = Some(Pipeline {
             pvm: PVM::new(send),
