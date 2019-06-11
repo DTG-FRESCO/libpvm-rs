@@ -296,7 +296,7 @@ impl AuditEvent {
 
     fn posix_mmap(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
-        let f = pvm.declare(&FILE, fuuid, None)?;
+        let mut f = pvm.declare(&FILE, fuuid, None)?;
         if let Some(fdpath) = self.fdpath.clone() {
             pvm.name(f, Name::Path(fdpath))?;
         }
@@ -305,9 +305,11 @@ impl AuditEvent {
                 if let Some(ref share_flags) = self.arg_sharing_flags {
                     if !share_flags.contains(&String::from("MAP_PRIVATE")) {
                         pvm.sinkstart(pro, f)?;
+                        f = pvm.declare(&FILE, fuuid, None)?;
                     }
                 } else {
                     pvm.sinkstart(pro, f)?;
+                    f = pvm.declare(&FILE, fuuid, None)?;
                 }
             }
 
