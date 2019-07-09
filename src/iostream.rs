@@ -79,7 +79,7 @@ impl FromRawFd for IOStream {
             IOType::UnixStream => Box::new(unix::net::UnixStream::from_raw_fd(fd)) as Box<dyn Read>,
             IOType::Unknown(e) => {
                 panic!(
-                    "Unsupported input stream. You have passed a fd type that is not supported by libopus: {}",
+                    "Unsupported input stream. You have passed a fd type that is not supported by libpvm: {}",
                     e
                 )
             }

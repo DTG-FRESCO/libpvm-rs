@@ -1,5 +1,5 @@
 [package]
-name = "libopus"
+name = "libpvm"
 version = "0.1.0"
 authors = ["Lucian Carata <lc525@cam.ac.uk>",
            "Thomas Bytheway <tb403@cam.ac.uk>"]
@@ -10,7 +10,7 @@ edition = "2018"
 cbindgen = { git = "https://github.com/eqrion/cbindgen.git", branch = "master" }
 
 [lib]
-name = "opus"
+name = "pvm"
 path = "src/lib.rs"
 crate-type = ["rlib", "cdylib"]
 

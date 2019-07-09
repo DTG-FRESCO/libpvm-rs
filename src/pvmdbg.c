@@ -1,4 +1,4 @@
-#include "opus.h"
+#include "pvm.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,10 +17,10 @@ int main(int argc, char** argv) {
   }
 
   Config cfg = { Auto, true, "plugins", 0 };
-  OpusHdl* hdl = opus_init(cfg);
-  opus_start_pipeline(hdl);
+  PVMHdl* hdl = pvm_init(cfg);
+  pvm_start_pipeline(hdl);
 
-  intptr_t ret = opus_create_view_by_name(hdl, "DBGView", NULL, 0);
+  intptr_t ret = pvm_create_view_by_name(hdl, "DBGView", NULL, 0);
   if(ret < 0 ){
     if(ret == -EAMBIGUOUSVIEWNAME) {
       printf("Error: Ambiguous view name");
@@ -34,8 +34,8 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  opus_ingest_fd(hdl, in);
-  opus_shutdown_pipeline(hdl);
-  opus_cleanup(hdl);
+  pvm_ingest_fd(hdl, in);
+  pvm_shutdown_pipeline(hdl);
+  pvm_cleanup(hdl);
   return 0;
 }

@@ -22,14 +22,14 @@ use libc::malloc;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub enum OpusErr {
+pub enum PVMErr {
     EUNKNOWN = 1,
     EAMBIGUOUSVIEWNAME = 2,
     ENOVIEWWITHNAME = 3,
     EINVALIDARG = 4,
 }
 
-fn ret(err: OpusErr) -> isize {
+fn ret(err: PVMErr) -> isize {
     -(err as isize)
 }
 
@@ -67,7 +67,7 @@ pub struct Config {
     cfg_detail: *const AdvancedConfig,
 }
 
-pub struct OpusHdl(engine::Engine);
+pub struct PVMHdl(engine::Engine);
 
 fn keyval_arr_to_hashmap(ptr: *const KeyVal, n: usize) -> HashMap<String, Box<dyn Any>> {
     let mut ret = HashMap::with_capacity(n);
@@ -134,7 +134,7 @@ fn string_from_c_char(str_p: *const c_char) -> Option<String> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_init(cfg: Config) -> *mut OpusHdl {
+pub unsafe extern "C" fn pvm_init(cfg: Config) -> *mut PVMHdl {
     let r_cfg = cfg::Config {
         cfg_mode: cfg.cfg_mode,
         suppress_default_views: cfg.suppress_default_views,
@@ -146,48 +146,48 @@ pub unsafe extern "C" fn opus_init(cfg: Config) -> *mut OpusHdl {
         },
     };
     let e = engine::Engine::new(r_cfg);
-    let hdl = Box::new(OpusHdl(e));
+    let hdl = Box::new(PVMHdl(e));
     Box::into_raw(hdl)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_start_pipeline(hdl: *mut OpusHdl) -> isize {
+pub unsafe extern "C" fn pvm_start_pipeline(hdl: *mut PVMHdl) -> isize {
     let engine = &mut (*hdl).0;
     match engine.init_pipeline() {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(OpusErr::EUNKNOWN)
+            ret(PVMErr::EUNKNOWN)
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_shutdown_pipeline(hdl: *mut OpusHdl) -> isize {
+pub unsafe extern "C" fn pvm_shutdown_pipeline(hdl: *mut PVMHdl) -> isize {
     let engine = &mut (*hdl).0;
     match engine.shutdown_pipeline() {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(OpusErr::EUNKNOWN)
+            ret(PVMErr::EUNKNOWN)
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_print_cfg(hdl: *const OpusHdl) {
+pub unsafe extern "C" fn pvm_print_cfg(hdl: *const PVMHdl) {
     let engine = &(*hdl).0;
     engine.print_cfg();
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_list_view_types(hdl: *const OpusHdl, out: *mut *mut View) -> isize {
+pub unsafe extern "C" fn pvm_list_view_types(hdl: *const PVMHdl, out: *mut *mut View) -> isize {
     let engine = &(*hdl).0;
     let views = match engine.list_view_types() {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Error: {}", e);
-            return ret(OpusErr::EUNKNOWN);
+            return ret(PVMErr::EUNKNOWN);
         }
     };
     let len = views.len();
@@ -205,8 +205,8 @@ pub unsafe extern "C" fn opus_list_view_types(hdl: *const OpusHdl, out: *mut *mu
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_create_view_by_id(
-    hdl: *mut OpusHdl,
+pub unsafe extern "C" fn pvm_create_view_by_id(
+    hdl: *mut PVMHdl,
     view_id: usize,
     params: *const KeyVal,
     n_params: usize,
@@ -217,14 +217,14 @@ pub unsafe extern "C" fn opus_create_view_by_id(
         Ok(vid) => vid as isize,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(OpusErr::EUNKNOWN)
+            ret(PVMErr::EUNKNOWN)
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_create_view_by_name(
-    hdl: *mut OpusHdl,
+pub unsafe extern "C" fn pvm_create_view_by_name(
+    hdl: *mut PVMHdl,
     name: *const c_char,
     params: *const KeyVal,
     n_params: usize,
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn opus_create_view_by_name(
     let name = match string_from_c_char(name) {
         Some(s) => s,
         None => {
-            return ret(OpusErr::EINVALIDARG);
+            return ret(PVMErr::EINVALIDARG);
         }
     };
     let views_with_name = match engine.list_view_types() {
@@ -245,36 +245,33 @@ pub unsafe extern "C" fn opus_create_view_by_name(
             .collect::<Vec<usize>>(),
         Err(e) => {
             eprintln!("Error: {}", e);
-            return ret(OpusErr::EUNKNOWN);
+            return ret(PVMErr::EUNKNOWN);
         }
     };
 
     if views_with_name.is_empty() {
-        ret(OpusErr::ENOVIEWWITHNAME)
+        ret(PVMErr::ENOVIEWWITHNAME)
     } else if views_with_name.len() > 1 {
-        ret(OpusErr::EAMBIGUOUSVIEWNAME)
+        ret(PVMErr::EAMBIGUOUSVIEWNAME)
     } else {
         match engine.create_view_by_id(views_with_name[0], rparams) {
             Ok(vid) => vid as isize,
             Err(e) => {
                 eprintln!("Error: {}", e);
-                ret(OpusErr::EUNKNOWN)
+                ret(PVMErr::EUNKNOWN)
             }
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_list_view_inst(
-    hdl: *const OpusHdl,
-    out: *mut *mut ViewInst,
-) -> isize {
+pub unsafe extern "C" fn pvm_list_view_inst(hdl: *const PVMHdl, out: *mut *mut ViewInst) -> isize {
     let engine = &(*hdl).0;
     let views = match engine.list_running_views() {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Error: {}", e);
-            return ret(OpusErr::EUNKNOWN);
+            return ret(PVMErr::EUNKNOWN);
         }
     };
     let len = views.len();
@@ -291,26 +288,26 @@ pub unsafe extern "C" fn opus_list_view_inst(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_ingest_fd(hdl: *mut OpusHdl, fd: i32) -> isize {
+pub unsafe extern "C" fn pvm_ingest_fd(hdl: *mut PVMHdl, fd: i32) -> isize {
     let engine = &mut (*hdl).0;
     let stream = IOStream::from_raw_fd(fd as RawFd);
     match timeit!(engine.ingest_stream(stream)) {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(OpusErr::EUNKNOWN)
+            ret(PVMErr::EUNKNOWN)
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_cleanup(hdl: *mut OpusHdl) {
+pub unsafe extern "C" fn pvm_cleanup(hdl: *mut PVMHdl) {
     drop(Box::from_raw(hdl));
     println!("Cleaning up..");
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn opus_count_processes(hdl: *const OpusHdl) -> i64 {
+pub unsafe extern "C" fn pvm_count_processes(hdl: *const PVMHdl) -> i64 {
     let engine = &(*hdl).0;
     engine.count_processes()
 }

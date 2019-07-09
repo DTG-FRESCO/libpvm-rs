@@ -27,7 +27,7 @@ fn generate_with_lang(crate_dir: &str, lang: cbindgen::Language, out: &str) {
 fn main() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
-    generate_with_lang(&crate_dir, cbindgen::Language::C, "src/include/opus.h");
+    generate_with_lang(&crate_dir, cbindgen::Language::C, "src/include/pvm.h");
 
-    generate_with_lang(&crate_dir, cbindgen::Language::Cxx, "src/include/opus.hpp");
+    generate_with_lang(&crate_dir, cbindgen::Language::Cxx, "src/include/pvm.hpp");
 }

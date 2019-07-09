@@ -1,4 +1,4 @@
-#include "opus.h"
+#include "pvm.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,12 +15,12 @@ int main(int argc, char** argv) {
   }
 
   Config cfg = { Auto, true, "plugins", 0 };
-  OpusHdl* hdl = opus_init(cfg);
+  PVMHdl* hdl = pvm_init(cfg);
   printf("Rust C API handle ptr: hdl(%p) \n", hdl);
 
-  opus_print_cfg(hdl);
+  pvm_print_cfg(hdl);
 
-  opus_start_pipeline(hdl);
+  pvm_start_pipeline(hdl);
 
   // test to see whether rust has copied the underlying memory or still
   // refers to C memory (the user should remain "neo4j" as far as rust
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
   strcpy(user, "dummy_info");
 
   View* views;
-  intptr_t num_views = opus_list_view_types(hdl, &views);
+  intptr_t num_views = pvm_list_view_types(hdl, &views);
 
   for (int i=0; i<num_views; i++) {
     printf("Views[%d]\nName: %s\nDescription: %s\nParams:\n", i, views[i].name, views[i].desc);
@@ -45,13 +45,13 @@ int main(int argc, char** argv) {
   free(views);
 
   printf("File fd: %d\n", in);
-  opus_ingest_fd(hdl, in);
+  pvm_ingest_fd(hdl, in);
 
-  opus_shutdown_pipeline(hdl);
+  pvm_shutdown_pipeline(hdl);
 
-  printf("Number of processes: %ld\n", opus_count_processes(hdl));
+  printf("Number of processes: %ld\n", pvm_count_processes(hdl));
 
-  opus_cleanup(hdl);
+  pvm_cleanup(hdl);
 
   return 0;
 }
