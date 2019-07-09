@@ -8,19 +8,23 @@ use std::{
     thread,
 };
 
-use crate::{
-    cfg::Config,
-    data::{
-        node_types::{NameNode, Node, PVMDataType::*, SchemaNode},
-        rel_types::Rel,
-        HasDst, HasID, HasSrc, ID,
+use pvm_plugins::{
+    define_plugin,
+    views::{
+        data::{
+            node_types::{NameNode, Node, PVMDataType::*, SchemaNode},
+            rel_types::Rel,
+            HasDst, HasID, HasSrc, ID,
+        },
+        DBTr, View, ViewInst, ViewParams, ViewParamsExt,
     },
-    view::*,
 };
 
 use maplit::hashmap;
 use serde_json;
 use zip::{write::FileOptions, ZipWriter};
+
+define_plugin!(views => [ CSVView ]);
 
 const HYDRATE_SH_PRE: &str = r#"#! /bin/bash
 export NEO4J_USER=neo4j
@@ -80,13 +84,7 @@ impl View for CSVView {
     fn params(&self) -> HashMap<&'static str, &'static str> {
         hashmap!("path" => "The file to write the csv data to.")
     }
-    fn create(
-        &self,
-        id: usize,
-        params: ViewParams,
-        _cfg: &Config,
-        stream: Receiver<Arc<DBTr>>,
-    ) -> ViewInst {
+    fn create(&self, id: usize, params: ViewParams, stream: Receiver<Arc<DBTr>>) -> ViewInst {
         let path = params.get_or_def("path", "./prov_csv.zip");
         let mut out = ZipWriter::new(File::create(path).unwrap());
         let thr = thread::Builder::new()
@@ -95,7 +93,7 @@ impl View for CSVView {
                 out.start_file("db/n_dbinfo.csv", FileOptions::default())
                     .unwrap();
                 writeln!(out, ":LABEL,pvm_version:int,source").unwrap();
-                writeln!(out, "DBInfo,2,libPVM-{}", crate::VERSION).unwrap();
+                writeln!(out, "DBInfo,2,libPVM-{}", /*crate::VERSION*/ "").unwrap();
 
                 let mut nodes: HashMap<Cow<'static, str>, HashMap<ID, Node>> = HashMap::new();
                 let mut rels: HashMap<Cow<'static, str>, HashMap<ID, Rel>> = HashMap::new();

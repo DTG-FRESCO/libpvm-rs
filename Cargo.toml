@@ -16,9 +16,14 @@ crate-type = ["rlib", "cdylib"]
 
 [workspace]
 members = [
-    "modules/pvm-cfg",
     "modules/pvm-data",
     "modules/pvm-views",
+    "modules/pvm-plugins",
+]
+exclude = [
+    "plugins/dbg-view",
+    "plugins/csv-view",
+    "plugins/proc-tree-view",
 ]
 
 [dependencies]
@@ -28,6 +33,7 @@ lazy_static = "*"
 serde = "1.0"
 serde_json = "*"
 serde_derive = "1.0"
+libloading = "0.5"
 libc = "*"
 nix = "0.9.0"
 rayon = "1.0"
@@ -38,7 +44,7 @@ uuid = { version = "0.7", features = ["serde", "v5"] }
 zip = "0.3.1"
 chrono = { version = ">=0.4.3", features = ["serde"] }
 neo4j = {path = "modules/rusty-bolt/neo4j" }
-pvm-cfg = { path = "modules/pvm-cfg" }
 pvm-data = { path = "modules/pvm-data" }
 pvm-views = { path = "modules/pvm-views" }
+pvm-plugins = { path = "modules/pvm-plugins" }
 transactions = { path = "modules/transactions-rs", features = ["lending"]}

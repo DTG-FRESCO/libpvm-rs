@@ -3,8 +3,8 @@
 #![feature(duration_float)]
 #![feature(custom_attribute)]
 
-pub extern crate pvm_cfg as cfg;
 pub extern crate pvm_data as data;
+pub extern crate pvm_plugins as plugins;
 pub extern crate pvm_views as view;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -27,6 +27,7 @@ macro_rules! timeit {
 pub use c_api::*;
 
 pub mod c_api;
+pub mod cfg;
 pub mod engine;
 pub mod ingest;
 pub mod invbloom;
@@ -34,4 +35,3 @@ pub mod iostream;
 pub mod neo4j_glue;
 pub mod query;
 pub mod trace;
-pub mod views;

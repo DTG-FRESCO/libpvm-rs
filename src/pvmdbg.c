@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
     in = open(argv[1], O_RDONLY);
   }
 
-  Config cfg = { Auto, "", "", "", true, 0 };
+  Config cfg = { Auto, true, "plugins", 0 };
   OpusHdl* hdl = opus_init(cfg);
   opus_start_pipeline(hdl);
 

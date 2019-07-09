@@ -1,3 +1,4 @@
+#![feature(custom_attribute)]
 use std::{
     collections::HashMap,
     fs::File,
@@ -6,19 +7,23 @@ use std::{
     thread,
 };
 
-use crate::{
-    cfg,
-    data::{
-        node_types::{CtxNode, Node, PVMDataType},
-        rel_types::Rel,
-        HasDst, HasID, HasSrc, ID,
+use pvm_plugins::{
+    define_plugin,
+    views::{
+        data::{
+            node_types::{CtxNode, Node, PVMDataType},
+            rel_types::Rel,
+            HasDst, HasID, HasSrc, ID,
+        },
+        DBTr, View, ViewInst, ViewParams, ViewParamsExt,
     },
-    view::{DBTr, View, ViewInst, ViewParams, ViewParamsExt},
 };
 
 use maplit::hashmap;
-use serde::Serialize;
+use serde_derive::Serialize;
 use serde_json::to_writer;
+
+define_plugin!(views => [ ProcTreeView ]);
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
@@ -72,13 +77,7 @@ impl View for ProcTreeView {
         hashmap!("output" => "Output file location",
                  "meta_key" => "Metadata key for process name")
     }
-    fn create(
-        &self,
-        id: usize,
-        params: ViewParams,
-        _cfg: &cfg::Config,
-        stream: Receiver<Arc<DBTr>>,
-    ) -> ViewInst {
+    fn create(&self, id: usize, params: ViewParams, stream: Receiver<Arc<DBTr>>) -> ViewInst {
         let path = params.get_or_def("output", "./proc_tree.json");
         let meta_key = params.get_or_def("meta_key", "cmdline").to_string();
         let mut out = File::create(path).unwrap();

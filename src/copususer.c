@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
     in = open(argv[1], O_RDONLY);
   }
 
-  Config cfg = { Auto, "localhost:7687", user, "opus", false, 0 };
+  Config cfg = { Auto, true, "plugins", 0 };
   OpusHdl* hdl = opus_init(cfg);
   printf("Rust C API handle ptr: hdl(%p) \n", hdl);
 

@@ -1,7 +1,9 @@
 [package]
-name = "pvm-cfg"
+name = "pvm-plugins"
 version = "0.1.0"
 authors = ["Thomas Bytheway <tb403@cam.ac.uk>"]
 edition = "2018"
 
 [dependencies]
+libloading = "0.5"
+pvm-views = { path = "../pvm-views" }

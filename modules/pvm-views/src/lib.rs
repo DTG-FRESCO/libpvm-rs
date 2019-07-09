@@ -1,5 +1,4 @@
-extern crate pvm_cfg as cfg;
-extern crate pvm_data as data;
+pub extern crate pvm_data as data;
 
 use std::{
     any::Any,
@@ -9,10 +8,7 @@ use std::{
     thread::{Builder as ThreadBuilder, JoinHandle},
 };
 
-use crate::{
-    cfg::Config,
-    data::{node_types::Node, rel_types::Rel},
-};
+pub use crate::data::{node_types::Node, rel_types::Rel};
 
 #[derive(Clone, Debug)]
 pub enum DBTr {
@@ -68,13 +64,7 @@ pub trait View: Debug {
     fn name(&self) -> &'static str;
     fn desc(&self) -> &'static str;
     fn params(&self) -> HashMap<&'static str, &'static str>;
-    fn create(
-        &self,
-        id: usize,
-        params: ViewParams,
-        cfg: &Config,
-        stream: mpsc::Receiver<Arc<DBTr>>,
-    ) -> ViewInst;
+    fn create(&self, id: usize, params: ViewParams, stream: mpsc::Receiver<Arc<DBTr>>) -> ViewInst;
 }
 
 #[derive(Debug)]
@@ -132,11 +122,11 @@ impl ViewCoordinator {
         self.insts.iter().collect()
     }
 
-    pub fn create_view_inst(&mut self, id: usize, params: ViewParams, cfg: &Config) -> usize {
+    pub fn create_view_inst(&mut self, id: usize, params: ViewParams) -> usize {
         let iid = self.viid_gen;
         self.viid_gen += 1;
         let (w, r) = mpsc::sync_channel(1000);
-        let view = self.views[&id].create(iid, params, cfg, r);
+        let view = self.views[&id].create(iid, params, r);
         self.insts.push(view);
         self.streams.lock().unwrap().push(w);
         iid

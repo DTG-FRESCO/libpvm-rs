@@ -5,7 +5,6 @@ use std::{
 };
 
 use crate::{
-    cfg::Config,
     data::ID,
     neo4j_glue::{ToDBNode, ToDBRel},
     view::*,
@@ -36,21 +35,15 @@ impl View for Neo4JView {
         "View for streaming data to a Neo4j database instance."
     }
     fn params(&self) -> HashMap<&'static str, &'static str> {
-        hashmap!("addr" => "The Neo4j server address to connect to. Defaults to main cfg value.",
-                 "user" => "The username to auth with. Defaults to main cfg value.",
-                 "pass" => "The password to auth with. Defaults to main cfg value.")
+        hashmap!("addr" => "The Neo4j server address to connect to.",
+                 "user" => "The username to auth with.",
+                 "pass" => "The password to auth with.")
     }
-    fn create(
-        &self,
-        id: usize,
-        params: ViewParams,
-        cfg: &Config,
-        stream: Receiver<Arc<DBTr>>,
-    ) -> ViewInst {
+    fn create(&self, id: usize, params: ViewParams, stream: Receiver<Arc<DBTr>>) -> ViewInst {
         let mut db = {
-            let addr = params.get_or_def("addr", &cfg.db_server);
-            let user = params.get_or_def("user", &cfg.db_user);
-            let pass = params.get_or_def("pass", &cfg.db_password);
+            let addr = params.get_or_def("addr", "localhost:7687");
+            let user = params.get_or_def("user", "neo4j");
+            let pass = params.get_or_def("pass", "opus");
             Neo4jDB::connect(addr, user, pass).unwrap()
         };
         let thr = thread::Builder::new().name("Neo4jView".to_string()).spawn(move || {

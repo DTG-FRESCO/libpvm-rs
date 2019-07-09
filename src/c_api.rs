@@ -5,7 +5,10 @@ use std::{
     collections::HashMap,
     ffi::CStr,
     mem::size_of,
-    os::unix::io::{FromRawFd, RawFd},
+    os::{
+        raw::c_char,
+        unix::io::{FromRawFd, RawFd},
+    },
     ptr, slice,
 };
 
@@ -15,7 +18,7 @@ use crate::{
     iostream::IOStream,
 };
 
-use libc::{c_char, malloc};
+use libc::malloc;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -59,10 +62,8 @@ pub struct ViewInst {
 #[repr(C)]
 pub struct Config {
     cfg_mode: CfgMode,
-    db_server: *mut c_char,
-    db_user: *mut c_char,
-    db_password: *mut c_char,
     suppress_default_views: bool,
+    plugin_dir: *mut c_char,
     cfg_detail: *const AdvancedConfig,
 }
 
@@ -122,21 +123,22 @@ fn string_to_c_char(val: &str) -> *mut c_char {
 }
 
 fn string_from_c_char(str_p: *const c_char) -> Option<String> {
-    unsafe { CStr::from_ptr(str_p) }
-        .to_str()
-        .ok()
-        .map(|s| s.to_string())
+    if str_p.is_null() {
+        return None;
+    }
+    Some(
+        unsafe { CStr::from_ptr(str_p) }
+            .to_string_lossy()
+            .into_owned(),
+    )
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn opus_init(cfg: Config) -> *mut OpusHdl {
     let r_cfg = cfg::Config {
         cfg_mode: cfg.cfg_mode,
-        db_server: string_from_c_char(cfg.db_server)
-            .unwrap_or_else(|| "localhost:7687".to_string()),
-        db_user: string_from_c_char(cfg.db_user).unwrap_or_else(|| "neo4j".to_string()),
-        db_password: string_from_c_char(cfg.db_password).unwrap_or_else(|| "opus".to_string()),
         suppress_default_views: cfg.suppress_default_views,
+        plugin_dir: string_from_c_char(cfg.plugin_dir),
         cfg_detail: if cfg.cfg_detail.is_null() {
             Option::None
         } else {

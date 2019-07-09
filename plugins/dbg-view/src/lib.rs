@@ -6,12 +6,14 @@ use std::{
     thread,
 };
 
-use crate::{
-    cfg,
-    view::{DBTr, View, ViewInst, ViewParams, ViewParamsExt},
+use pvm_plugins::{
+    define_plugin,
+    views::{DBTr, View, ViewInst, ViewParams, ViewParamsExt},
 };
 
 use maplit::hashmap;
+
+define_plugin!(views => [ DBGView ]);
 
 #[derive(Debug)]
 pub struct DBGView {
@@ -34,13 +36,7 @@ impl View for DBGView {
     fn params(&self) -> HashMap<&'static str, &'static str> {
         hashmap!("output" => "Output file location")
     }
-    fn create(
-        &self,
-        id: usize,
-        params: ViewParams,
-        _cfg: &cfg::Config,
-        stream: Receiver<Arc<DBTr>>,
-    ) -> ViewInst {
+    fn create(&self, id: usize, params: ViewParams, stream: Receiver<Arc<DBTr>>) -> ViewInst {
         let path = params.get_or_def("output", "./dbg.trace");
         let mut out = BufWriter::new(File::create(path).unwrap());
         let thr = thread::Builder::new()
