@@ -74,8 +74,8 @@ impl Engine {
         println!("libPVM Config: {:?}", self.cfg);
     }
 
-    pub fn list_view_types(&self) -> EngineResult<Vec<&View>> {
-        if let Some(ref pipeline) = self.pipeline {
+    pub fn list_view_types(&self) -> EngineResult<Vec<&dyn View>> {
+        if let Some(pipeline) = &self.pipeline {
             Ok(pipeline.view_ctrl.list_view_types())
         } else {
             Err("Pipeline not running".into())

@@ -68,14 +68,14 @@ pub struct Config {
 
 pub struct OpusHdl(engine::Engine);
 
-fn keyval_arr_to_hashmap(ptr: *const KeyVal, n: usize) -> HashMap<String, Box<Any>> {
+fn keyval_arr_to_hashmap(ptr: *const KeyVal, n: usize) -> HashMap<String, Box<dyn Any>> {
     let mut ret = HashMap::with_capacity(n);
     if !ptr.is_null() {
         let s = unsafe { slice::from_raw_parts(ptr, n) };
         for kv in s {
             ret.insert(
                 string_from_c_char(kv.key).unwrap(),
-                Box::new(string_from_c_char(kv.val).unwrap()) as Box<Any>,
+                Box::new(string_from_c_char(kv.val).unwrap()) as Box<dyn Any>,
             );
         }
     }
@@ -86,7 +86,7 @@ fn view_params_to_keyval_arr(h: &HashMap<&'static str, &'static str>) -> (*mut K
     iter_to_keyval_arr(h.iter().map(|(k, v)| (*k, *v)), h.len())
 }
 
-fn view_inst_params_to_keyval_arr(h: &HashMap<String, Box<Any>>) -> (*mut KeyVal, usize) {
+fn view_inst_params_to_keyval_arr(h: &HashMap<String, Box<dyn Any>>) -> (*mut KeyVal, usize) {
     iter_to_keyval_arr(
         h.iter().map(|(k, v)| match v.downcast_ref::<String>() {
             Some(r) => (k as &str, r as &str),

@@ -22,7 +22,7 @@ pub enum DBTr {
     UpdateRel(Rel),
 }
 
-pub type ViewParams = HashMap<String, Box<Any>>;
+pub type ViewParams = HashMap<String, Box<dyn Any>>;
 
 pub trait ViewParamsExt {
     fn get_or_def<'a>(&'a self, key: &str, def: &'a str) -> &'a str;
@@ -79,7 +79,7 @@ pub trait View: Debug {
 
 #[derive(Debug)]
 pub struct ViewCoordinator {
-    views: HashMap<usize, Box<View>>,
+    views: HashMap<usize, Box<dyn View>>,
     insts: Vec<ViewInst>,
     streams: Arc<Mutex<Vec<mpsc::SyncSender<Arc<DBTr>>>>>,
     thread: JoinHandle<()>,
@@ -124,7 +124,7 @@ impl ViewCoordinator {
         id
     }
 
-    pub fn list_view_types(&self) -> Vec<&View> {
+    pub fn list_view_types(&self) -> Vec<&dyn View> {
         self.views.values().map(|v| v.as_ref()).collect()
     }
 
