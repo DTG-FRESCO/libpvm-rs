@@ -43,8 +43,8 @@ quick-error = { package = "quick-error2", version = "2" }
 humantime = "1.2"
 uuid = { version = "0.7", features = ["serde", "v5"] }
 chrono = { version = ">=0.4.3", features = ["serde"] }
-neo4j = {path = "modules/rusty-bolt/neo4j" }
+neo4j = { git = "https://github.com/HarkonenBade/rusty-bolt.git" }
+transactions = { git = "https://github.com/DTG-FRESCO/transactions-rs.git", features = ["lending"]}
 pvm-data = { path = "modules/pvm-data" }
 pvm-views = { path = "modules/pvm-views" }
 pvm-plugins = { path = "modules/pvm-plugins" }
-transactions = { path = "modules/transactions-rs", features = ["lending"]}
