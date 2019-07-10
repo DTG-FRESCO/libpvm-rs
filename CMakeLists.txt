@@ -28,6 +28,7 @@ add_dependencies(pvmdbg libpvm)
 
 set(RUST_TARGET_DIR "${CMAKE_SOURCE_DIR}/target/release")
 set(LIBPVM "${RUST_TARGET_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}pvm${CMAKE_SHARED_LIBRARY_SUFFIX}")
+set(CMAKE_C_FLAGS "-std=c99")
 
 target_link_libraries(cpvmuser ${LIBPVM})
 target_link_libraries(pvm2csv ${LIBPVM})

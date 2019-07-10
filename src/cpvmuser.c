@@ -29,10 +29,10 @@ int main(int argc, char** argv) {
     }
   }
 
-  for (int i=0; i<num_views; i++) {
-    free((void*)views[i].name);
-    free((void*)views[i].desc);
-    free((void*)views[i].parameters);
+  for (int k=0; k<num_views; k++) {
+    free((void*)views[k].name);
+    free((void*)views[k].desc);
+    free((void*)views[k].parameters);
   }
   free(views);
 
