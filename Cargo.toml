@@ -42,7 +42,6 @@ either = "1.5"
 quick-error = { package = "quick-error2", version = "2" }
 humantime = "1.2"
 uuid = { version = "0.7", features = ["serde", "v5"] }
-zip = "0.3.1"
 chrono = { version = ">=0.4.3", features = ["serde"] }
 neo4j = {path = "modules/rusty-bolt/neo4j" }
 pvm-data = { path = "modules/pvm-data" }
