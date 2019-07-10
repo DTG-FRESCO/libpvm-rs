@@ -3,5 +3,5 @@ rust:
   - nightly
 cache: cargo
 script:
-  - ./build-plugins.sh
+  - ./build_plugins.sh
   - cd build; cmake ..; make
