@@ -29,7 +29,7 @@ macro_rules! define_plugin {
             }
 
             fn view_ops(&self, vc: &mut $crate::views::ViewCoordinator) {
-                $(vc.register_view_type::<$v>();)*
+                $(vc.register_view_type::<$v>().unwrap();)*
             }
         }
 
