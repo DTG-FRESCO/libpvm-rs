@@ -6,26 +6,18 @@
 #include <fcntl.h>
 
 int main(int argc, char** argv) {
-  char* user = malloc(5*sizeof(char));
-  strcpy(user, "neo4j");
-
   int in = 0;
   if(strcmp(argv[1], "-") != 0){
     in = open(argv[1], O_RDONLY);
   }
 
-  Config cfg = { Auto, true, "plugins", 0 };
+  Config cfg = { Auto, "plugins", 0 };
   PVMHdl* hdl = pvm_init(cfg);
   printf("Rust C API handle ptr: hdl(%p) \n", hdl);
 
   pvm_print_cfg(hdl);
 
   pvm_start_pipeline(hdl);
-
-  // test to see whether rust has copied the underlying memory or still
-  // refers to C memory (the user should remain "neo4j" as far as rust
-  // is concerned)
-  strcpy(user, "dummy_info");
 
   View* views;
   intptr_t num_views = pvm_list_view_types(hdl, &views);
@@ -43,6 +35,9 @@ int main(int argc, char** argv) {
     free((void*)views[i].parameters);
   }
   free(views);
+
+  // NULLs to use defaults
+  pvm_init_persistance(hdl, NULL, NULL, NULL);
 
   printf("File fd: %d\n", in);
   pvm_ingest_fd(hdl, in);

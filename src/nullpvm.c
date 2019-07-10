@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
     in = open(argv[1], O_RDONLY);
   }
 
-  Config cfg = { Auto, true, "plugins", 0 };
+  Config cfg = { Auto, "plugins", 0 };
   PVMHdl* hdl = pvm_init(cfg);
   pvm_start_pipeline(hdl);
   pvm_ingest_fd(hdl, in);

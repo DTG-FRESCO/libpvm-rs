@@ -15,7 +15,6 @@ pub struct AdvancedConfig {
 #[derive(Debug)]
 pub struct Config {
     pub cfg_mode: CfgMode,
-    pub suppress_default_views: bool,
     pub plugin_dir: Option<String>,
     pub cfg_detail: Option<AdvancedConfig>,
 }

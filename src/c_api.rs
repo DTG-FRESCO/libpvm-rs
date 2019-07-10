@@ -84,7 +84,6 @@ pub struct ViewInst {
 #[repr(C)]
 pub struct Config {
     cfg_mode: CfgMode,
-    suppress_default_views: bool,
     plugin_dir: *mut c_char,
     cfg_detail: *const AdvancedConfig,
 }
@@ -159,7 +158,6 @@ fn string_from_c_char(str_p: *const c_char) -> Option<String> {
 pub unsafe extern "C" fn pvm_init(cfg: Config) -> *mut PVMHdl {
     let r_cfg = cfg::Config {
         cfg_mode: cfg.cfg_mode,
-        suppress_default_views: cfg.suppress_default_views,
         plugin_dir: string_from_c_char(cfg.plugin_dir),
         cfg_detail: if cfg.cfg_detail.is_null() {
             Option::None
@@ -194,6 +192,27 @@ pub unsafe extern "C" fn pvm_start_pipeline(hdl: *mut PVMHdl) -> isize {
 pub unsafe extern "C" fn pvm_shutdown_pipeline(hdl: *mut PVMHdl) -> isize {
     let engine = &mut (*hdl).0;
     match engine.shutdown_pipeline() {
+        Ok(_) => 0,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            ret(e)
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn pvm_init_persistance(
+    hdl: *mut PVMHdl,
+    addr: *const c_char,
+    user: *const c_char,
+    pass: *const c_char,
+) -> isize {
+    let engine = &mut (*hdl).0;
+    match engine.init_persistance(
+        string_from_c_char(addr),
+        string_from_c_char(user),
+        string_from_c_char(pass),
+    ) {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("Error: {}", e);

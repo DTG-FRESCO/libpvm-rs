@@ -16,7 +16,6 @@ use crate::{
 };
 
 use libloading::{Library, Symbol};
-use maplit::hashmap;
 //use neo4j::Neo4jDB;
 use quick_error::quick_error;
 
@@ -129,10 +128,7 @@ impl Engine {
         }
         let (send, recv) = mpsc::sync_channel(100_000);
         let mut view_ctrl = ViewCoordinator::new(recv)?;
-        let neo4j_view_id = view_ctrl.register_view_type::<Neo4JView>()?;
-        if !self.cfg.suppress_default_views {
-            view_ctrl.create_view_inst(neo4j_view_id, hashmap!());
-        }
+        view_ctrl.register_view_type::<Neo4JView>()?;
         self.plugins.init_view_coordinator(&mut view_ctrl);
         self.pipeline = Some(Pipeline {
             pvm: PVM::new(send),
@@ -167,12 +163,27 @@ impl Engine {
         println!("libPVM Config: {:?}", self.cfg);
     }
 
-    pub fn list_view_types(&self) -> EngineResult<Vec<&dyn View>> {
-        if let Some(pipeline) = &self.pipeline {
-            Ok(pipeline.view_ctrl.list_view_types())
-        } else {
-            Err("Pipeline not running".into())
+    pub fn init_persistance(
+        &mut self,
+        addr: Option<String>,
+        user: Option<String>,
+        pass: Option<String>,
+    ) -> Result<()> {
+        let pipeline = self.get_pipeline_mut()?;
+        let mut params = ViewParams::new();
+        if let Some(addr) = addr {
+            params.insert_param("addr", addr);
         }
+        if let Some(user) = user {
+            params.insert_param("user", user);
+        }
+        if let Some(pass) = pass {
+            params.insert_param("pass", pass);
+        }
+        pipeline
+            .view_ctrl
+            .create_view_with_name("Neo4JView", params)?;
+        Ok(())
     }
 
     pub fn list_view_types(&self) -> Result<Vec<&dyn View>> {
