@@ -39,6 +39,7 @@ nix = "0.9.0"
 rayon = "1.0"
 maplit = "*"
 either = "1.5"
+quick-error = { package = "quick-error2", version = "2" }
 humantime = "1.2"
 uuid = { version = "0.7", features = ["serde", "v5"] }
 zip = "0.3.1"

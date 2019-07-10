@@ -1,21 +1,56 @@
-use std::{borrow::Cow, ffi::OsStr, path::Path, sync::mpsc};
+use std::{ffi::OsStr, path::Path, sync::mpsc};
 
 use crate::{
     cfg::Config,
-    ingest::{ingest_stream, pvm::PVM, Parseable},
+    ingest::{
+        ingest_stream,
+        pvm::{PVMError, PVM},
+        Parseable,
+    },
     iostream::IOStream,
     neo4j_glue::Neo4JView,
     plugins::{Plugin, PluginInit},
     //    query::low::count_processes,
     trace::cadets::TraceEvent,
-    view::{View, ViewCoordinator, ViewInst, ViewParams},
+    view::{View, ViewCoordinator, ViewError, ViewInst, ViewParams, ViewParamsExt},
 };
 
 use libloading::{Library, Symbol};
 use maplit::hashmap;
 //use neo4j::Neo4jDB;
+use quick_error::quick_error;
 
-type EngineResult<T> = Result<T, Cow<'static, str>>;
+quick_error! {
+    #[derive(Debug)]
+    pub enum EngineError {
+        PipelineRunning {
+            description("Pipeline already running")
+        }
+        PipelineNotRunning {
+            description("Pipeline not yet running")
+        }
+        PluginError(err: std::io::Error) {
+            source(err)
+            from()
+            description(err.description())
+            display("Plugin error: {}", err)
+        }
+        ProcessingError(err: PVMError) {
+            source(err)
+            from()
+            description(err.description())
+            display("Processing error: {}", err)
+        }
+        ViewError(err: ViewError) {
+            source(err)
+            from()
+            description(err.description())
+            display("View Orchestration error: {}", err)
+        }
+    }
+}
+
+type Result<T> = std::result::Result<T, EngineError>;
 
 pub struct PluginManager {
     plugins: Vec<(Box<dyn Plugin>, Library)>,
@@ -28,23 +63,21 @@ impl PluginManager {
         }
     }
 
-    fn load(&mut self, path: &Path) -> EngineResult<()> {
-        let lib = Library::new(path).map_err(|e| Cow::from(e.to_string()))?;
+    fn load(&mut self, path: &Path) -> Result<()> {
+        let lib = Library::new(path)?;
         unsafe {
-            let init: Symbol<PluginInit> = lib
-                .get(b"_pvm_plugin_init")
-                .map_err(|e| Cow::from(e.to_string()))?;
+            let init: Symbol<PluginInit> = lib.get(b"_pvm_plugin_init")?;
             let plugin = Box::from_raw(init());
             self.plugins.push((plugin, lib));
         }
         Ok(())
     }
 
-    fn load_all(&mut self, path: &Path) -> EngineResult<()> {
+    fn load_all(&mut self, path: &Path) -> Result<()> {
         let dylib_ext = Some(OsStr::new("so"));
 
-        for entry in path.read_dir().map_err(|e| Cow::from(e.to_string()))? {
-            let entry = entry.map_err(|e| Cow::from(e.to_string()))?;
+        for entry in path.read_dir()? {
+            let entry = entry?;
 
             if entry.path().extension() == dylib_ext {
                 self.load(&entry.path())?;
@@ -78,25 +111,25 @@ impl Drop for Engine {
 }
 
 impl Engine {
-    pub fn new(cfg: Config) -> Engine {
+    pub fn new(cfg: Config) -> Result<Engine> {
         let mut plugins = PluginManager::new();
         if let Some(plugin_dir) = &cfg.plugin_dir {
-            plugins.load_all(Path::new(plugin_dir)).unwrap();
+            plugins.load_all(Path::new(plugin_dir))?;
         }
-        Engine {
+        Ok(Engine {
             cfg,
             plugins,
             pipeline: None,
-        }
+        })
     }
 
-    pub fn init_pipeline(&mut self) -> EngineResult<()> {
+    pub fn init_pipeline(&mut self) -> Result<()> {
         if self.pipeline.is_some() {
-            return Err("Pipeline already running".into());
+            return Err(EngineError::PipelineRunning);
         }
         let (send, recv) = mpsc::sync_channel(100_000);
-        let mut view_ctrl = ViewCoordinator::new(recv);
-        let neo4j_view_id = view_ctrl.register_view_type::<Neo4JView>();
+        let mut view_ctrl = ViewCoordinator::new(recv)?;
+        let neo4j_view_id = view_ctrl.register_view_type::<Neo4JView>()?;
         if !self.cfg.suppress_default_views {
             view_ctrl.create_view_inst(neo4j_view_id, hashmap!());
         }
@@ -108,14 +141,26 @@ impl Engine {
         Ok(())
     }
 
-    pub fn shutdown_pipeline(&mut self) -> EngineResult<()> {
+    pub fn shutdown_pipeline(&mut self) -> Result<()> {
         if let Some(pipeline) = self.pipeline.take() {
             pipeline.pvm.shutdown();
             pipeline.view_ctrl.shutdown();
             Ok(())
         } else {
-            Err("Pipeline not running".into())
+            Err(EngineError::PipelineNotRunning)
         }
+    }
+
+    fn get_pipeline(&self) -> Result<&Pipeline> {
+        self.pipeline
+            .as_ref()
+            .ok_or(EngineError::PipelineNotRunning)
+    }
+
+    fn get_pipeline_mut(&mut self) -> Result<&mut Pipeline> {
+        self.pipeline
+            .as_mut()
+            .ok_or(EngineError::PipelineNotRunning)
     }
 
     pub fn print_cfg(&self) {
@@ -130,55 +175,49 @@ impl Engine {
         }
     }
 
-    pub fn register_view_type<T: View + Sized + 'static>(&mut self) -> EngineResult<usize> {
-        if let Some(ref mut pipeline) = self.pipeline {
-            Ok(pipeline.view_ctrl.register_view_type::<T>())
-        } else {
-            Err("Pipeline not running".into())
-        }
+    pub fn list_view_types(&self) -> Result<Vec<&dyn View>> {
+        let pipeline = self.get_pipeline()?;
+        Ok(pipeline.view_ctrl.list_view_types())
     }
 
-    pub fn create_view_by_id(&mut self, view_id: usize, params: ViewParams) -> EngineResult<usize> {
-        if let Some(ref mut pipeline) = self.pipeline {
-            Ok(pipeline.view_ctrl.create_view_inst(view_id, params))
-        } else {
-            Err("Pipeline not running".into())
-        }
+    pub fn register_view_type<T: View + Sized + 'static>(&mut self) -> Result<usize> {
+        let pipeline = self.get_pipeline_mut()?;
+        Ok(pipeline.view_ctrl.register_view_type::<T>()?)
     }
 
-    pub fn list_running_views(&self) -> EngineResult<Vec<&ViewInst>> {
-        if let Some(ref pipeline) = self.pipeline {
-            Ok(pipeline.view_ctrl.list_view_insts())
-        } else {
-            Err("Pipeline not running".into())
-        }
+    pub fn create_view_by_name(&mut self, view_name: &str, params: ViewParams) -> Result<usize> {
+        let pipeline = self.get_pipeline_mut()?;
+        Ok(pipeline
+            .view_ctrl
+            .create_view_with_name(view_name, params)?)
     }
 
-    pub fn ingest_stream(&mut self, stream: IOStream) -> EngineResult<()> {
-        if let Some(ref mut pipeline) = self.pipeline {
-            ingest_stream::<_, TraceEvent>(stream, &mut pipeline.pvm);
-            Ok(())
-        } else {
-            Err("Pipeline not running".into())
-        }
+    pub fn create_view_by_id(&mut self, view_id: usize, params: ViewParams) -> Result<usize> {
+        let pipeline = self.get_pipeline_mut()?;
+        Ok(pipeline.view_ctrl.create_view_with_id(view_id, params)?)
     }
 
-    pub fn init_record<T: Parseable>(&mut self) -> EngineResult<()> {
-        if let Some(ref mut pipeline) = self.pipeline {
-            T::init(&mut pipeline.pvm);
-            Ok(())
-        } else {
-            Err("Pipeline not running".into())
-        }
+    pub fn list_running_views(&self) -> Result<Vec<&ViewInst>> {
+        let pipeline = self.get_pipeline()?;
+        Ok(pipeline.view_ctrl.list_view_insts())
     }
 
-    pub fn ingest_record<T: Parseable>(&mut self, rec: &mut T) -> EngineResult<()> {
-        if let Some(ref mut pipeline) = self.pipeline {
-            rec.parse(&mut pipeline.pvm)
-                .map_err(|e| e.to_string().into())
-        } else {
-            Err("Pipeline not running".into())
-        }
+    pub fn ingest_stream(&mut self, stream: IOStream) -> Result<()> {
+        let pipeline = self.get_pipeline_mut()?;
+        ingest_stream::<_, TraceEvent>(stream, &mut pipeline.pvm);
+        Ok(())
+    }
+
+    pub fn init_record<T: Parseable>(&mut self) -> Result<()> {
+        let pipeline = self.get_pipeline_mut()?;
+        T::init(&mut pipeline.pvm);
+        Ok(())
+    }
+
+    pub fn ingest_record<T: Parseable>(&mut self, rec: &mut T) -> Result<()> {
+        let pipeline = self.get_pipeline_mut()?;
+        rec.parse(&mut pipeline.pvm)?;
+        Ok(())
     }
 
     pub fn count_processes(&self) -> i64 {

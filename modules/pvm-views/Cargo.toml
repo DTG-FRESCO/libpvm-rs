@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 pvm-data = { path = "../pvm-data" }
+quick-error = { package = "quick-error2", version = "2" }

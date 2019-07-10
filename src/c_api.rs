@@ -1,7 +1,6 @@
 #![allow(unused_attributes)]
 
 use std::{
-    any::Any,
     collections::HashMap,
     ffi::CStr,
     mem::size_of,
@@ -14,8 +13,9 @@ use std::{
 
 use crate::{
     cfg::{self, AdvancedConfig, CfgMode},
-    engine,
+    engine::{Engine, EngineError},
     iostream::IOStream,
+    view::{ViewError, ViewParams, ViewParamsExt},
 };
 
 use libc::malloc;
@@ -26,11 +26,33 @@ pub enum PVMErr {
     EUNKNOWN = 1,
     EAMBIGUOUSVIEWNAME = 2,
     ENOVIEWWITHNAME = 3,
+    ENOVIEWWITHID = 5,
     EINVALIDARG = 4,
+    EPIPELINENOTRUNNING = 6,
+    EPIPELINERUNNING = 7,
+    EPLUGINLOAD = 8,
+    ETHREADSTARTUP = 9,
 }
 
-fn ret(err: PVMErr) -> isize {
-    -(err as isize)
+impl From<EngineError> for PVMErr {
+    fn from(val: EngineError) -> Self {
+        match val {
+            EngineError::PipelineRunning => PVMErr::EPIPELINERUNNING,
+            EngineError::PipelineNotRunning => PVMErr::EPIPELINENOTRUNNING,
+            EngineError::PluginError(_) => PVMErr::EPLUGINLOAD,
+            EngineError::ProcessingError(_) => PVMErr::EUNKNOWN,
+            EngineError::ViewError(e) => match e {
+                ViewError::ThreadingErr(_) => PVMErr::ETHREADSTARTUP,
+                ViewError::DuplicateViewName(_) => PVMErr::EAMBIGUOUSVIEWNAME,
+                ViewError::MissingViewID(_) => PVMErr::ENOVIEWWITHID,
+                ViewError::MissingViewName(_) => PVMErr::ENOVIEWWITHNAME,
+            },
+        }
+    }
+}
+
+fn ret<T: Into<PVMErr>>(err: T) -> isize {
+    -(err.into() as isize)
 }
 
 #[repr(C)]
@@ -67,16 +89,16 @@ pub struct Config {
     cfg_detail: *const AdvancedConfig,
 }
 
-pub struct PVMHdl(engine::Engine);
+pub struct PVMHdl(Engine);
 
-fn keyval_arr_to_hashmap(ptr: *const KeyVal, n: usize) -> HashMap<String, Box<dyn Any>> {
-    let mut ret = HashMap::with_capacity(n);
+fn keyval_arr_to_hashmap(ptr: *const KeyVal, n: usize) -> ViewParams {
+    let mut ret = ViewParams::with_capacity(n);
     if !ptr.is_null() {
         let s = unsafe { slice::from_raw_parts(ptr, n) };
         for kv in s {
-            ret.insert(
+            ret.insert_param(
                 string_from_c_char(kv.key).unwrap(),
-                Box::new(string_from_c_char(kv.val).unwrap()) as Box<dyn Any>,
+                string_from_c_char(kv.val).unwrap(),
             );
         }
     }
@@ -87,7 +109,7 @@ fn view_params_to_keyval_arr(h: &HashMap<&'static str, &'static str>) -> (*mut K
     iter_to_keyval_arr(h.iter().map(|(k, v)| (*k, *v)), h.len())
 }
 
-fn view_inst_params_to_keyval_arr(h: &HashMap<String, Box<dyn Any>>) -> (*mut KeyVal, usize) {
+fn view_inst_params_to_keyval_arr(h: &ViewParams) -> (*mut KeyVal, usize) {
     iter_to_keyval_arr(
         h.iter().map(|(k, v)| match v.downcast_ref::<String>() {
             Some(r) => (k as &str, r as &str),
@@ -145,7 +167,13 @@ pub unsafe extern "C" fn pvm_init(cfg: Config) -> *mut PVMHdl {
             Option::Some(ptr::read(cfg.cfg_detail))
         },
     };
-    let e = engine::Engine::new(r_cfg);
+    let e = match Engine::new(r_cfg) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            return ptr::null_mut();
+        }
+    };
     let hdl = Box::new(PVMHdl(e));
     Box::into_raw(hdl)
 }
@@ -157,7 +185,7 @@ pub unsafe extern "C" fn pvm_start_pipeline(hdl: *mut PVMHdl) -> isize {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(PVMErr::EUNKNOWN)
+            ret(e)
         }
     }
 }
@@ -169,7 +197,7 @@ pub unsafe extern "C" fn pvm_shutdown_pipeline(hdl: *mut PVMHdl) -> isize {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(PVMErr::EUNKNOWN)
+            ret(e)
         }
     }
 }
@@ -187,7 +215,7 @@ pub unsafe extern "C" fn pvm_list_view_types(hdl: *const PVMHdl, out: *mut *mut 
         Ok(v) => v,
         Err(e) => {
             eprintln!("Error: {}", e);
-            return ret(PVMErr::EUNKNOWN);
+            return ret(e);
         }
     };
     let len = views.len();
@@ -217,7 +245,7 @@ pub unsafe extern "C" fn pvm_create_view_by_id(
         Ok(vid) => vid as isize,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(PVMErr::EUNKNOWN)
+            ret(e)
         }
     }
 }
@@ -237,29 +265,11 @@ pub unsafe extern "C" fn pvm_create_view_by_name(
             return ret(PVMErr::EINVALIDARG);
         }
     };
-    let views_with_name = match engine.list_view_types() {
-        Ok(vtypes) => vtypes
-            .into_iter()
-            .filter(|v| v.name() == name)
-            .map(|v| v.id())
-            .collect::<Vec<usize>>(),
+    match engine.create_view_by_name(&name, rparams) {
+        Ok(vid) => vid as isize,
         Err(e) => {
             eprintln!("Error: {}", e);
-            return ret(PVMErr::EUNKNOWN);
-        }
-    };
-
-    if views_with_name.is_empty() {
-        ret(PVMErr::ENOVIEWWITHNAME)
-    } else if views_with_name.len() > 1 {
-        ret(PVMErr::EAMBIGUOUSVIEWNAME)
-    } else {
-        match engine.create_view_by_id(views_with_name[0], rparams) {
-            Ok(vid) => vid as isize,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                ret(PVMErr::EUNKNOWN)
-            }
+            ret(e)
         }
     }
 }
@@ -271,7 +281,7 @@ pub unsafe extern "C" fn pvm_list_view_inst(hdl: *const PVMHdl, out: *mut *mut V
         Ok(v) => v,
         Err(e) => {
             eprintln!("Error: {}", e);
-            return ret(PVMErr::EUNKNOWN);
+            return ret(e);
         }
     };
     let len = views.len();
@@ -295,7 +305,7 @@ pub unsafe extern "C" fn pvm_ingest_fd(hdl: *mut PVMHdl, fd: i32) -> isize {
         Ok(_) => 0,
         Err(e) => {
             eprintln!("Error: {}", e);
-            ret(PVMErr::EUNKNOWN)
+            ret(e)
         }
     }
 }

@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    fmt::{Display, Formatter, Result as FMTResult},
     fs::File,
     io::{Seek, SeekFrom, Write},
     sync::{
@@ -32,18 +31,18 @@ use maplit::hashset;
 use transactions::{hash_wrap::HashWrap, lending_wrap::LendingWrap};
 use uuid::Uuid;
 
-pub enum PVMError {
-    AssertionFailure { cont: String },
-    MissingField { evt: String, field: &'static str },
-}
+use quick_error::quick_error;
 
-impl Display for PVMError {
-    fn fmt(&self, f: &mut Formatter) -> FMTResult {
-        match self {
-            PVMError::AssertionFailure { cont } => write!(f, "Assertion failed, {}", cont),
-            PVMError::MissingField { evt, field } => {
-                write!(f, "Event {} missing needed field {}", evt, field)
-            }
+quick_error! {
+    #[derive(Debug)]
+    pub enum PVMError {
+        AssertionFailure { cont: String } {
+            description("Assertion failed")
+            display("Assertion failed, {}", cont)
+        }
+        MissingField { evt: String, field: &'static str } {
+            description("Event missing required field")
+            display("Event {} missing needed field {}", evt, field)
         }
     }
 }
