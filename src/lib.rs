@@ -9,6 +9,7 @@ pub extern crate pvm_views as view;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[macro_export]
 macro_rules! timeit {
     ($E:expr) => {{
         use std::time::Instant;

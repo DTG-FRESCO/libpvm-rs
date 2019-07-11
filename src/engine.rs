@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, path::Path, sync::mpsc};
+use std::{ffi::OsStr, io::Read, path::Path, sync::mpsc};
 
 use crate::{
     cfg::Config,
@@ -216,6 +216,12 @@ impl Engine {
     pub fn ingest_stream(&mut self, stream: IOStream) -> Result<()> {
         let pipeline = self.get_pipeline_mut()?;
         ingest_stream::<_, TraceEvent>(stream, &mut pipeline.pvm);
+        Ok(())
+    }
+
+    pub fn ingest_reader<R: Read>(&mut self, reader: R) -> Result<()> {
+        let pipeline = self.get_pipeline_mut()?;
+        ingest_stream::<_, TraceEvent>(reader, &mut pipeline.pvm);
         Ok(())
     }
 
