@@ -7,7 +7,7 @@ build = "build.rs"
 edition = "2018"
 
 [build-dependencies]
-cbindgen = { git = "https://github.com/eqrion/cbindgen.git", branch = "master" }
+cbindgen = "0.9.0"
 
 [lib]
 name = "pvm"
