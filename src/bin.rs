@@ -11,7 +11,9 @@ use pvm::{
     view::{View, ViewParams, ViewParamsExt},
 };
 
-use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
+use clap::{
+    app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg, ArgMatches,
+};
 
 struct ViewArgDetails {
     id: usize,
@@ -37,6 +39,27 @@ impl ViewArgDetails {
             name: vname,
         }
     }
+
+    fn as_clap_args(&self) -> Vec<Arg> {
+        let mut ret = Vec::new();
+        ret.push(Arg::with_name(&self.name).long(&self.name).help(&self.help));
+        ret.extend(self.params.iter().map(|p| p.as_clap_arg(&self.name)));
+        ret
+    }
+
+    fn is_present(&self, m: &ArgMatches) -> bool {
+        m.is_present(&self.name)
+    }
+
+    fn get_id_and_params(&self, m: &ArgMatches) -> (usize, ViewParams) {
+        let mut params = ViewParams::new();
+        for param in &self.params {
+            if let Some(val) = m.value_of(&param.name) {
+                params.insert_param(&param.act_name, val.to_string());
+            }
+        }
+        (self.id, params)
+    }
 }
 
 struct ViewParamArgDetails {
@@ -55,6 +78,14 @@ impl ViewParamArgDetails {
             help: desc,
         }
     }
+
+    fn as_clap_arg<'a>(&'a self, aname: &'a str) -> Arg<'a, 'a> {
+        Arg::with_name(&self.name)
+            .long(&self.name)
+            .help(&self.help)
+            .requires(aname)
+            .takes_value(true)
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -65,50 +96,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     })?;
     e.init_pipeline()?;
 
-    let mut app = Some(
-        app_from_crate!().arg(
-            Arg::with_name("path")
-                .required(true)
-                .help("Path to begin ingesting data from."),
-        ),
-    );
-
     let args = e
         .list_view_types()?
         .into_iter()
         .map(ViewArgDetails::from_view)
         .collect::<Vec<_>>();
 
-    for arg in &args {
-        let tmp = app
-            .take()
-            .unwrap()
-            .arg(Arg::with_name(&arg.name).long(&arg.name).help(&arg.help));
-        app = Some(tmp);
-
-        for param in &arg.params {
-            let tmp = app.take().unwrap().arg(
-                Arg::with_name(&param.name)
-                    .long(&param.name)
-                    .help(&param.help)
-                    .requires(&arg.name)
-                    .takes_value(true),
-            );
-            app = Some(tmp);
-        }
-    }
-
-    let m = app.unwrap().get_matches();
+    let m = app_from_crate!()
+        .arg(
+            Arg::with_name("path")
+                .required(true)
+                .help("Path to begin ingesting data from."),
+        )
+        .args(
+            &args
+                .iter()
+                .map(ViewArgDetails::as_clap_args)
+                .flatten()
+                .collect::<Vec<_>>(),
+        )
+        .get_matches();
 
     for arg in &args {
-        if m.is_present(&arg.name) {
-            let mut params = ViewParams::new();
-            for param in &arg.params {
-                if let Some(val) = m.value_of(&param.name) {
-                    params.insert_param(&param.act_name, val.to_string());
-                }
-            }
-            e.create_view_by_id(arg.id, params)?;
+        if arg.is_present(&m) {
+            let (id, params) = arg.get_id_and_params(&m);
+            e.create_view_by_id(id, params)?;
         }
     }
 
