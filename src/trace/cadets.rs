@@ -15,7 +15,7 @@ use crate::{
 use chrono::{serde::ts_nanoseconds, DateTime, Utc};
 use lazy_static::lazy_static;
 use maplit::hashmap;
-use serde::Deserialize;
+use serde_derive::Deserialize;
 use uuid::Uuid;
 
 lazy_static! {
