@@ -6,7 +6,7 @@ use std::{
 };
 
 use pvm::{
-    cfg::{CfgMode, Config},
+    cfg::Config,
     engine::Engine,
     view::{View, ViewParams, ViewParamsExt},
 };
@@ -89,11 +89,15 @@ impl ViewParamArgDetails {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut e = Engine::new(Config {
-        cfg_detail: None,
-        cfg_mode: CfgMode::Auto,
-        plugin_dir: var("PVM_PLUGIN_DIR").ok(),
-    })?;
+    let plugin_dir = var("PVM_PLUGIN_DIR").ok();
+
+    let cfg = if let Some(plugin_dir) = plugin_dir {
+        Config::build().plugin_dir(plugin_dir).finish()
+    } else {
+        Config::default()
+    };
+
+    let mut e = Engine::new(cfg)?;
     e.init_pipeline()?;
 
     let args = e
