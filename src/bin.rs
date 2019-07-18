@@ -111,8 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .args(
             &args
                 .iter()
-                .map(ViewArgDetails::as_clap_args)
-                .flatten()
+                .flat_map(ViewArgDetails::as_clap_args)
                 .collect::<Vec<_>>(),
         )
         .get_matches();
