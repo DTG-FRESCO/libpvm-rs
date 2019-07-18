@@ -25,9 +25,12 @@ macro_rules! timeit {
     }};
 }
 
+#[cfg(feature = "capi")]
 pub use c_api::*;
 
+#[cfg(feature = "capi")]
 pub mod c_api;
+
 pub mod cfg;
 pub mod engine;
 pub mod ingest;
