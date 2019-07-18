@@ -13,6 +13,15 @@ pub use crate::data::{node_types::Node, rel_types::Rel};
 
 use quick_error::quick_error;
 
+mod built_info {
+    #![allow(dead_code)]
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
+pub const fn version() -> &'static str {
+    built_info::PKG_VERSION
+}
+
 quick_error! {
     #[derive(Debug)]
     pub enum ViewError {

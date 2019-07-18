@@ -1,8 +1,12 @@
 [package]
 name = "pvm-plugins"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Thomas Bytheway <tb403@cam.ac.uk>"]
 edition = "2018"
+build = "build.rs"
+
+[build-dependencies]
+built = "0.3"
 
 [dependencies]
 libloading = "0.5"

@@ -3,6 +3,15 @@ mod meta_store;
 pub mod node_types;
 pub mod rel_types;
 
+mod built_info {
+    #![allow(dead_code)]
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
+pub const fn version() -> &'static str {
+    built_info::PKG_VERSION
+}
+
 pub use self::{id::ID, meta_store::MetaStore};
 
 pub trait Enumerable {

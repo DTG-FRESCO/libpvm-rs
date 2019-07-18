@@ -9,7 +9,7 @@ use crate::{
     },
     iostream::IOStream,
     neo4j_glue::Neo4JView,
-    plugins::{Plugin, PluginInit},
+    plugins::{plugin_version, Plugin, PluginInit},
     //    query::low::count_processes,
     trace::cadets::TraceEvent,
     view::{View, ViewCoordinator, ViewError, ViewInst, ViewParams, ViewParamsExt},
@@ -27,6 +27,10 @@ quick_error! {
         }
         PipelineNotRunning {
             description("Pipeline not yet running")
+        }
+        PluginVersionMismatch(path: String) {
+            description("Attempted to load a plugin with a mismatched plugin API version")
+            display("Failed to load plugin {} due to a mismatched plugin API version", path)
         }
         PluginError(err: std::io::Error) {
             source(err)
@@ -67,6 +71,11 @@ impl PluginManager {
         unsafe {
             let init: Symbol<PluginInit> = lib.get(b"_pvm_plugin_init")?;
             let plugin = Box::from_raw(init());
+            if plugin.build_version() != plugin_version() {
+                return Err(EngineError::PluginVersionMismatch(
+                    path.to_string_lossy().into_owned(),
+                ));
+            }
             self.plugins.push((plugin, lib));
         }
         Ok(())

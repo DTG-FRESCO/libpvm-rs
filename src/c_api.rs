@@ -40,6 +40,7 @@ impl From<EngineError> for PVMErr {
             EngineError::PipelineRunning => PVMErr::EPIPELINERUNNING,
             EngineError::PipelineNotRunning => PVMErr::EPIPELINENOTRUNNING,
             EngineError::PluginError(_) => PVMErr::EPLUGINLOAD,
+            EngineError::PluginVersionMismatch(_) => PVMErr::EPLUGINLOAD,
             EngineError::ProcessingError(_) => PVMErr::EUNKNOWN,
             EngineError::ViewError(e) => match e {
                 ViewError::ThreadingErr(_) => PVMErr::ETHREADSTARTUP,
