@@ -5,25 +5,13 @@ use uuid::Uuid;
 
 macro_rules! field {
     ($TR:ident. $F:ident) => {
-        $TR.$F.ok_or(PVMError::MissingField {
-            evt: $TR.event.clone(),
-            field: stringify!($F),
-        })?
-    };
-}
-
-macro_rules! ref_field {
-    ($TR:ident. $F:ident) => {
-        $TR.$F.as_ref().ok_or(PVMError::MissingField {
-            evt: $TR.event.clone(),
-            field: stringify!($F),
-        })?
-    };
-}
-
-macro_rules! clone_field {
-    ($TR:ident. $F:ident) => {
         $TR.$F.clone().ok_or(PVMError::MissingField {
+            evt: $TR.event.clone(),
+            field: stringify!($F),
+        })?
+    };
+    (&$TR:ident. $F:ident) => {
+        $TR.$F.as_ref().ok_or(PVMError::MissingField {
             evt: $TR.event.clone(),
             field: stringify!($F),
         })?

@@ -159,7 +159,7 @@ impl AuditEvent {
         Ok(if let Some(pth) = self.upath1.clone() {
             Some(Name::Path(pth))
         } else if let Some(prt) = self.port {
-            let addr = clone_field!(self.address);
+            let addr = field!(self.address);
             Some(Name::Net(addr, prt))
         } else {
             None
@@ -178,9 +178,9 @@ impl AuditEvent {
     }
 
     fn posix_exec(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let cmdline = ref_field!(self.cmdline);
+        let cmdline = field!(&self.cmdline);
         let binuuid = field!(self.arg_objuuid1);
-        let binname = clone_field!(self.upath1);
+        let binname = field!(self.upath1);
 
         let bin = pvm.declare(&FILE, binuuid, None)?;
         pvm.name(bin, Name::Path(binname))?;
@@ -189,7 +189,7 @@ impl AuditEvent {
         pvm.source(pro, bin)?;
 
         if let Some(lduuid) = self.arg_objuuid2 {
-            let ldname = clone_field!(self.upath2);
+            let ldname = field!(self.upath2);
 
             let ld = pvm.declare(&FILE, lduuid, None)?;
             pvm.name(ld, Name::Path(ldname))?;
@@ -217,7 +217,7 @@ impl AuditEvent {
 
     fn posix_open(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         if let Some(fuuid) = self.ret_objuuid1 {
-            let fname = clone_field!(self.upath1);
+            let fname = field!(self.upath1);
 
             let f = pvm.declare(&FILE, fuuid, None)?;
             pvm.name(f, Name::Path(fname))?;
@@ -389,7 +389,7 @@ impl AuditEvent {
 
     fn posix_chmod(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
-        let fpath = clone_field!(self.upath1);
+        let fpath = field!(self.upath1);
         let mode = field!(self.mode);
         let f = pvm.declare(&FILE, fuuid, None)?;
         pvm.meta(f, "mode", &format!("{:o}", mode))?;
@@ -400,7 +400,7 @@ impl AuditEvent {
 
     fn posix_chown(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
-        let fpath = clone_field!(self.upath1);
+        let fpath = field!(self.upath1);
         let arg_uid = field!(self.arg_uid);
         let arg_gid = field!(self.arg_gid);
         let f = pvm.declare(&FILE, fuuid, None)?;
@@ -439,8 +439,8 @@ impl AuditEvent {
 
     fn posix_link(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
-        let upath1 = clone_field!(self.upath1);
-        let upath2 = clone_field!(self.upath2);
+        let upath1 = field!(self.upath1);
+        let upath2 = field!(self.upath2);
         let f = pvm.declare(&FILE, fuuid, None)?;
         pvm.name(f, Name::Path(upath1))?;
         pvm.name(f, Name::Path(upath2))?;
@@ -449,8 +449,8 @@ impl AuditEvent {
 
     fn posix_rename(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let src_uuid = field!(self.arg_objuuid1);
-        let src = clone_field!(self.upath1);
-        let dst = clone_field!(self.upath2);
+        let src = field!(self.upath1);
+        let dst = field!(self.upath2);
         let fsrc = pvm.declare(&FILE, src_uuid, None)?;
         pvm.unname(fsrc, Name::Path(src))?;
         if let Some(ovr_uuid) = self.arg_objuuid2 {
@@ -463,14 +463,14 @@ impl AuditEvent {
 
     fn posix_unlink(&self, _pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
         let fuuid = field!(self.arg_objuuid1);
-        let upath1 = clone_field!(self.upath1);
+        let upath1 = field!(self.upath1);
         let f = pvm.declare(&FILE, fuuid, None)?;
         pvm.unname(f, Name::Path(upath1))?;
         Ok(())
     }
 
     fn posix_setuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let uid = ref_field!(self.arg_uid);
+        let uid = field!(&self.arg_uid);
         pvm.meta(pro, "euid", uid)?;
         pvm.meta(pro, "ruid", uid)?;
         pvm.meta(pro, "suid", uid)?;
@@ -478,14 +478,14 @@ impl AuditEvent {
     }
 
     fn posix_seteuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let euid = ref_field!(self.arg_euid);
+        let euid = field!(&self.arg_euid);
         pvm.meta(pro, "euid", euid)?;
         Ok(())
     }
 
     fn posix_setreuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let ruid = ref_field!(self.arg_ruid);
-        let euid = ref_field!(self.arg_euid);
+        let ruid = field!(&self.arg_ruid);
+        let euid = field!(&self.arg_euid);
         if *ruid != -1 {
             pvm.meta(pro, "ruid", ruid)?;
         }
@@ -496,9 +496,9 @@ impl AuditEvent {
     }
 
     fn posix_setresuid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let ruid = ref_field!(self.arg_ruid);
-        let euid = ref_field!(self.arg_euid);
-        let suid = ref_field!(self.arg_suid);
+        let ruid = field!(&self.arg_ruid);
+        let euid = field!(&self.arg_euid);
+        let suid = field!(&self.arg_suid);
         if *ruid != -1 {
             pvm.meta(pro, "ruid", ruid)?;
         }
@@ -512,7 +512,7 @@ impl AuditEvent {
     }
 
     fn posix_setgid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let gid = ref_field!(self.arg_gid);
+        let gid = field!(&self.arg_gid);
         pvm.meta(pro, "egid", gid)?;
         pvm.meta(pro, "rgid", gid)?;
         pvm.meta(pro, "sgid", gid)?;
@@ -520,14 +520,14 @@ impl AuditEvent {
     }
 
     fn posix_setegid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let egid = ref_field!(self.arg_egid);
+        let egid = field!(&self.arg_egid);
         pvm.meta(pro, "egid", egid)?;
         Ok(())
     }
 
     fn posix_setregid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let rgid = ref_field!(self.arg_rgid);
-        let egid = ref_field!(self.arg_egid);
+        let rgid = field!(&self.arg_rgid);
+        let egid = field!(&self.arg_egid);
         if *rgid != -1 {
             pvm.meta(pro, "rgid", rgid)?;
         }
@@ -538,9 +538,9 @@ impl AuditEvent {
     }
 
     fn posix_setresgid(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let rgid = ref_field!(self.arg_rgid);
-        let egid = ref_field!(self.arg_egid);
-        let sgid = ref_field!(self.arg_sgid);
+        let rgid = field!(&self.arg_rgid);
+        let egid = field!(&self.arg_egid);
+        let sgid = field!(&self.arg_sgid);
         if *rgid != -1 {
             pvm.meta(pro, "rgid", rgid)?;
         }
@@ -554,7 +554,7 @@ impl AuditEvent {
     }
 
     fn posix_setlogin(&self, pro: ID, pvm: &mut PVMTransaction) -> PVMResult<()> {
-        let login = ref_field!(self.login);
+        let login = field!(&self.login);
         pvm.meta(pro, "login_name", login)?;
         Ok(())
     }
@@ -562,7 +562,7 @@ impl AuditEvent {
     fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
         let mut ctx = hashmap!(
             "event" => self.event.clone(),
-            "host" => self.host.unwrap().to_hyphenated_ref().to_string(),
+            "host" => field!(self.host).to_hyphenated_ref().to_string(),
             "time" => self.time.to_rfc3339(),
         );
         if let Some(offset) = self.offset {
