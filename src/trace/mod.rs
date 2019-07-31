@@ -3,6 +3,7 @@ use std::fmt;
 
 use uuid::Uuid;
 
+#[macro_export]
 macro_rules! field {
     ($TR:ident. $F:ident) => {
         $TR.$F.clone().ok_or(PVMError::MissingField {
@@ -48,6 +49,7 @@ impl MapFmt for DateTime<Utc> {
     }
 }
 
+#[macro_export]
 macro_rules! fields_to_map {
     ($ret:ident; ) => {};
     ($ret:ident; $s:ident.$f:ident) => {
