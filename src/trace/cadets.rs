@@ -1,3 +1,7 @@
+//! CADETS trace format PVM mapping
+//!
+//! This module contains the definition of the PVM mapping for the CADETS trace format.
+
 use std::fmt;
 
 use crate::{
@@ -7,7 +11,7 @@ use crate::{
     },
     ingest::{
         pvm::{ConnectDir, PVMError, PVMResult, PVMTransaction, PVM},
-        Parseable,
+        Mapped,
     },
     trace::MapFmt,
 };
@@ -62,6 +66,7 @@ lazy_static! {
     };
 }
 
+/// An Audit event
 #[derive(Deserialize, Debug)]
 pub struct AuditEvent {
     pub offset: Option<usize>,
@@ -643,6 +648,7 @@ impl AuditEvent {
     }
 }
 
+/// A FBT type event
 #[derive(Deserialize, Debug)]
 pub struct FBTEvent {
     pub offset: Option<usize>,
@@ -675,6 +681,7 @@ impl fmt::Display for FBTEvent {
     }
 }
 
+/// A CADETS trace event
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
 pub enum TraceEvent {
@@ -699,7 +706,7 @@ impl fmt::Display for TraceEvent {
     }
 }
 
-impl Parseable for TraceEvent {
+impl Mapped for TraceEvent {
     fn init(pvm: &mut PVM) {
         pvm.register_data_type(&PROCESS);
         pvm.register_data_type(&FILE);
@@ -724,7 +731,7 @@ impl Parseable for TraceEvent {
         }
     }
 
-    fn parse(&self, pvm: &mut PVM) -> PVMResult<()> {
+    fn process(&self, pvm: &mut PVM) -> PVMResult<()> {
         match self {
             TraceEvent::Audit(box tr) => tr.parse(pvm),
             TraceEvent::FBT(_) => Ok(()),

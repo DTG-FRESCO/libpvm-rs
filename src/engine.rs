@@ -5,7 +5,7 @@ use crate::{
     ingest::{
         ingest_stream,
         pvm::{PVMError, PVM},
-        Parseable,
+        Mapped,
     },
     iostream::IOStream,
     neo4j_glue::Neo4JView,
@@ -234,15 +234,15 @@ impl Engine {
         Ok(())
     }
 
-    pub fn init_record<T: Parseable>(&mut self) -> Result<()> {
+    pub fn init_record<T: Mapped>(&mut self) -> Result<()> {
         let pipeline = self.get_pipeline_mut()?;
         T::init(&mut pipeline.pvm);
         Ok(())
     }
 
-    pub fn ingest_record<T: Parseable>(&mut self, rec: &mut T) -> Result<()> {
+    pub fn ingest_record<T: Mapped>(&mut self, rec: &mut T) -> Result<()> {
         let pipeline = self.get_pipeline_mut()?;
-        rec.parse(&mut pipeline.pvm)?;
+        rec.process(&mut pipeline.pvm)?;
         Ok(())
     }
 
