@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 2.8.9)
-
 # Automated project semantic versioning (semver.org) based on git tags.
 #
 # template: M.m.p-lbl.delta+g[commit-hash][.d]
@@ -41,8 +39,9 @@ cmake_minimum_required(VERSION 2.8.9)
 # be a release and no delta or git hash components are added. The label appears
 # only if explicitly user set or if it exists in the tag (no branch names added)
 #
+function(semver dirty_marker tag_overwrite)
 execute_process(
-  COMMAND git --git-dir ${CMAKE_SOURCE_DIR}/.git describe --match v[0-9]* --dirty=.d --tags
+  COMMAND git --git-dir ${CMAKE_SOURCE_DIR}/.git describe --match v[0-9]* --dirty=.${dirty_maker} --tags
   OUTPUT_VARIABLE GIT_DESC
   )
 execute_process(
@@ -105,51 +104,5 @@ else()
   set(PROJECT_VERSION ${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_VERSION}-${PROJECT_TAG_VERSION}.${PROJECT_GIT_TAG_DELTA}+${PROJECT_GIT_COMMIT_HASH})
 endif()
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml.in"
-               "${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml"
-               IMMEDIATE @ONLY)
+endfunction(semver)
 
-message("
-              .................................................
-              .##......######..#####...#####...##..##..##...##.
-              .##........##....##..##..##..##..##..##..###.###.
-              .##........##....#####...#####...##..##..##.#.##.
-              .##........##....##..##..##.......####...##...##.
-              .######..######..#####...##........##....##...##.
-              .................................................
-
-              # Maintainer:          Thomas Bytheway (github.com/HarkonenBade)
-              # Build Type:          ${CMAKE_BUILD_TYPE}
-              # Version (library):   ${PROJECT_VERSION}
-              # Version (utils):     ${PROJECT_UTILS_VERSION}
-
-
-Starting libPVM build...
-")
-if(NOT DEFINED CMAKE_HEADER_SLEEP)
-  set(CMAKE_HEADER_SLEEP 0)
-endif()
-execute_process(COMMAND ${CMAKE_COMMAND} -E sleep ${CMAKE_HEADER_SLEEP} )
-
-add_custom_target(
-    libpvm
-    COMMAND cargo build --release
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    VERBATIM)
-
-add_custom_target(
-    libpvm-clean
-    COMMAND cargo clean
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    VERBATIM)
-
-include_directories(src/include)
-
-add_executable(pvm-ingest src/pvm-ingest.c)
-add_executable(pvm-ingest2csv src/pvm-ingest2csv.c)
-
-add_dependencies(pvm-ingest libpvm)
-add_dependencies(pvm-ingest2csv libpvm)
-
-target_link_libraries(pvm-ingest "${CMAKE_SOURCE_DIR}/target/release/libpvm.so")
-target_link_libraries(pvm-ingest2csv "${CMAKE_SOURCE_DIR}/target/release/libpvm.so")

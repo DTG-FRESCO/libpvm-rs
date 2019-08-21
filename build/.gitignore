@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+# Except .build and .clean
+!.gitignore
+!.build
+!.clean
+!.rscfl_ko_update.sh

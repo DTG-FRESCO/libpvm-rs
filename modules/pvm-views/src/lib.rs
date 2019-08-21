@@ -61,7 +61,7 @@ pub trait View: Debug {
         params: HashMap<String, String>,
         cfg: &Config,
         stream: mpsc::Receiver<Arc<DBTr>>,
-    ) -> ViewInst;
+    ) -> Result<ViewInst, String>;
 }
 
 #[derive(Debug)]
@@ -120,14 +120,14 @@ impl ViewCoordinator {
         id: usize,
         params: HashMap<String, String>,
         cfg: &Config,
-    ) -> usize {
+    ) -> Result<usize, String> {
         let iid = self.viid_gen;
         self.viid_gen += 1;
         let (w, r) = mpsc::sync_channel(1000);
-        let view = self.views[&id].create(iid, params, cfg, r);
+        let view = self.views[&id].create(iid, params, cfg, r)?;
         self.insts.push(view);
         self.streams.lock().unwrap().push(w);
-        iid
+        Ok(iid)
     }
 
     pub fn shutdown(self) {

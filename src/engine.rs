@@ -45,7 +45,7 @@ impl Engine {
         let mut view_ctrl = ViewCoordinator::new(recv);
         let neo4j_view_id = view_ctrl.register_view_type::<Neo4JView>();
         if !self.cfg.suppress_default_views {
-            view_ctrl.create_view_inst(neo4j_view_id, hashmap!(), &self.cfg);
+            view_ctrl.create_view_inst(neo4j_view_id, hashmap!(), &self.cfg)?;
         }
         view_ctrl.register_view_type::<CSVView>();
         self.pipeline = Some(Pipeline {
@@ -66,7 +66,7 @@ impl Engine {
     }
 
     pub fn print_cfg(&self) {
-        println!("libPVM Config: {:?}", self.cfg);
+        println!("libPVM Config: {:#?}", self.cfg);
     }
 
     pub fn list_view_types(&self) -> EngineResult<Vec<&View>> {
@@ -95,7 +95,7 @@ impl Engine {
         if let Some(ref mut pipeline) = self.pipeline {
             Ok(pipeline
                 .view_ctrl
-                .create_view_inst(view_id, params, &self.cfg))
+                .create_view_inst(view_id, params, &self.cfg)?)
         } else {
             Err("Pipeline not running".into())
         }

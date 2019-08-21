@@ -44,12 +44,15 @@ impl View for Neo4JView {
         params: HashMap<String, String>,
         cfg: &Config,
         stream: Receiver<Arc<DBTr>>,
-    ) -> ViewInst {
+    ) -> Result<ViewInst, String> {
         let mut db = {
             let addr = params.get("addr").unwrap_or(&cfg.db_server);
             let user = params.get("user").unwrap_or(&cfg.db_user);
             let pass = params.get("pass").unwrap_or(&cfg.db_password);
-            Neo4jDB::connect(addr, user, pass).unwrap()
+            match Neo4jDB::connect(addr, user, pass) {
+                Ok(connection) => connection,
+                Err(neo_error) => return Err(format!("{:?}", neo_error))
+            }
         };
         let thr = thread::spawn(move || {
             let mut nodes = CreateNodes::new();
@@ -153,12 +156,12 @@ impl View for Neo4JView {
             println!("Neo4J Transactions Issued: {}", trs);
             println!("Rel Updates: {}, Absorbed into Nodes: {}, Absorbed into other updates: {}, Finally executed: {}", rel_up_base, rel_up_base - rel_up_node, rel_up_node - rel_up_rel, rel_up_rel);
         });
-        ViewInst {
+        Ok(ViewInst {
             id,
             vtype: self.id,
             params,
             handle: thr,
-        }
+        })
     }
 }
 

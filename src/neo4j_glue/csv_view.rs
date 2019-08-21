@@ -85,7 +85,7 @@ impl View for CSVView {
         params: HashMap<String, String>,
         _cfg: &Config,
         stream: Receiver<Arc<DBTr>>,
-    ) -> ViewInst {
+    ) -> Result<ViewInst, String> {
         let mut out = ZipWriter::new(File::create(&params["path"]).unwrap());
         let thr = thread::spawn(move || {
             out.start_file("db/dbinfo.csv", FileOptions::default())
@@ -226,12 +226,12 @@ impl View for CSVView {
             }
             out.finish().unwrap();
         });
-        ViewInst {
+        Ok(ViewInst {
             id,
             vtype: self.id,
             params,
             handle: thr,
-        }
+        })
     }
 }
 
