@@ -10,13 +10,13 @@ Define a rust type that will sucessfully parse the trace format by using the Ser
 ```rust
 #[derive(Deserialize)]
 struct Event {
-	id: Uuid,
-	action: String,
-	src: Uuid,
-	dst: Uuid,
-	proc: String,
-	path: String,
-	trace_offset: Option<u64>,
+    id: Uuid,
+    action: String,
+    src: Uuid,
+    dst: Uuid,
+    proc: String,
+    path: String,
+    trace_offset: Option<u64>,
 }
 ```
 
@@ -27,7 +27,7 @@ Think about the semantics and define any concrete types that are required to exp
 ### Example
 ```rust
 lazy_static!{
-	static ref PROC: ConcreteType = ConcreteType {
+    static ref PROC: ConcreteType = ConcreteType {
         pvm_ty: Actor,
         name: "proc",
         props: hashmap!("name" => true),
@@ -52,29 +52,29 @@ Define the actual mapping implementation for the trace format. It is often conve
 ### Example
 ```rust
 impl Event {
-	fn map_read(&self, pvm: &mut PVMTransaction) -> PVMResult<()> {
-		let file = pvm.define(&FILE, self.src, None)?;
-		let proc = pvm.define(&PROC, self.dst, None)?;
+    fn map_read(&self, pvm: &mut PVMTransaction) -> PVMResult<()> {
+        let file = pvm.define(&FILE, self.src, None)?;
+        let proc = pvm.define(&PROC, self.dst, None)?;
 
-		pvm.meta(proc, "name", self.proc)?;
-		pvm.name(file, Name::Path(self.path))?;
+        pvm.meta(proc, "name", self.proc)?;
+        pvm.name(file, Name::Path(self.path))?;
 
-		pvm.source(file, proc)?;
+        pvm.source(file, proc)?;
 
-		Ok(())
-	}
+        Ok(())
+    }
 
-	fn map_write(&self, pvm: &mut PVMTransaction) -> PVMResult<()> {
-		let proc = pvm.define(&PROC, self.src, None)?;
-		let file = pvm.define(&FILE, self.dst, None)?;
+    fn map_write(&self, pvm: &mut PVMTransaction) -> PVMResult<()> {
+        let proc = pvm.define(&PROC, self.src, None)?;
+        let file = pvm.define(&FILE, self.dst, None)?;
 
-		pvm.meta(proc, "name", self.proc)?;
-		pvm.name(file, Name::Path(self.path))?;
+        pvm.meta(proc, "name", self.proc)?;
+        pvm.name(file, Name::Path(self.path))?;
 
-		pvm.sink(proc, file)?;
+        pvm.sink(proc, file)?;
 
-		Ok(())
-	}
+        Ok(())
+    }
 }
 ```
 
@@ -89,11 +89,11 @@ The `init()` function should register any ConcreteType or ContextType definition
 #### Example
 ```rust
 impl Mapped for Event {
-	fn init(pvm: &mut PVM) {
-		pvm.register_concrete_type(&PROC);
-		pvm.register_concrete_type(&FILE);
-		pvm.register_ctx_type(&CTX);
-	}
+    fn init(pvm: &mut PVM) {
+        pvm.register_concrete_type(&PROC);
+        pvm.register_concrete_type(&FILE);
+        pvm.register_ctx_type(&CTX);
+    }
 }
 ```
 
@@ -108,9 +108,9 @@ The `set_offset` method allows the trace injestion system to inform a record of 
 #### Example
 ```rust
 impl Mapped for Event {
-	fn set_offset(&mut self, offset: u64) {
-		self.trace_offset = Some(offset)
-	}
+    fn set_offset(&mut self, offset: u64) {
+        self.trace_offset = Some(offset)
+    }
 }
 ```
 
@@ -121,36 +121,36 @@ Finally the `process` method must be implemented. This method applies the mappin
 #### Example
 ```rust
 impl Mapped for Event {
-	fn process(&self, pvm: &mut PVM) -> PVMResult<()> {
-		// 1. Gather the context elements.
-		let ctx_cont = HashMap::new();
-		ctx_cont.insert("event_id", self.id.to_hyphenated_ref().to_string());
-		if let Some(offset) = self.trace_offset {
-			ctx_cont.insert("trace_offset", self.trace_offset.to_string());
-		}
+    fn process(&self, pvm: &mut PVM) -> PVMResult<()> {
+        // 1. Gather the context elements.
+        let ctx_cont = HashMap::new();
+        ctx_cont.insert("event_id", self.id.to_hyphenated_ref().to_string());
+        if let Some(offset) = self.trace_offset {
+            ctx_cont.insert("trace_offset", self.trace_offset.to_string());
+        }
 
-		// 2. Start a transaction
-		let tr = pvm.transaction(&CTX, ctx_cont);
+        // 2. Start a transaction
+        let tr = pvm.transaction(&CTX, ctx_cont);
 
-		// 3. Apply sub mapping functions
+        // 3. Apply sub mapping functions
 
-		let result = match &self.action[..] {
-			"action::read" => self.map_read(&mut tr),
-			"action::write" => self.map_write(&mut tr),
-		}
+        let result = match &self.action[..] {
+            "action::read" => self.map_read(&mut tr),
+            "action::write" => self.map_write(&mut tr),
+        }
 
-		// 4. Commit or rollback as appropriate
+        // 4. Commit or rollback as appropriate
 
-		match result {
-			Ok(_) => {
-				tr.commit();
-				Ok(())
-			}
-			Err(e) => {
-				tr.rollback();
-				Err(e)
-			}
-		}
-	}
+        match result {
+            Ok(_) => {
+                tr.commit();
+                Ok(())
+            }
+            Err(e) => {
+                tr.rollback();
+                Err(e)
+            }
+        }
+    }
 }
 ```
