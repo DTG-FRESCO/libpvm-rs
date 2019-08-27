@@ -2,7 +2,7 @@
 #![feature(specialization)]
 #![feature(duration_float)]
 #![feature(custom_attribute)]
-#![feature(duration_float)]
+#![feature(div_duration)]
 
 pub extern crate pvm_data as data;
 pub extern crate pvm_plugins as plugins;
