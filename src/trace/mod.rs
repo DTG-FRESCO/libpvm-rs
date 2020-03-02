@@ -1,8 +1,23 @@
+//! Tools for writing trace descriptions
+
 use chrono::{DateTime, Utc};
 use std::fmt;
 
 use uuid::Uuid;
 
+/// Macro for easy extraction of potentially absent fields from trace event structures.
+///
+/// Used with fields that are `Option<T>` types.
+///
+/// ```
+///     // Retrieves the value of self.foo if it is present, otherwise it generates and
+///     // propagates a PVMError::MissingField
+///     let f = field!(self.foo);
+///
+///     // As above, but takes a reference to the field value instead.
+///     let rf = field!(&self.foo);
+/// ```
+///
 #[macro_export]
 macro_rules! field {
     ($TR:ident. $F:ident) => {
@@ -19,7 +34,7 @@ macro_rules! field {
     };
 }
 
-trait MapFmt {
+pub trait MapFmt {
     fn entry(&self, f: &mut fmt::DebugMap, key: &str);
 }
 

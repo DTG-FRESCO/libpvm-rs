@@ -1,7 +1,6 @@
-/*
- * Reverse bloom filter based on
- * https://www.somethingsimilar.com/2012/05/21/the-opposite-of-a-bloom-filter/
- */
+//! Reverse bloom filter based on
+//!
+//! https://www.somethingsimilar.com/2012/05/21/the-opposite-of-a-bloom-filter/
 
 use std::{
     collections::hash_map::DefaultHasher,

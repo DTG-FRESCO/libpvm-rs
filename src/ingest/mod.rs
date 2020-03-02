@@ -24,9 +24,9 @@ pub trait Mapped: DeserializeOwned + Display + Send + Sized {
     /// Initialize the PVM object for the trace format.
     ///
     /// This method must be called at least once by the ingesting code before any further calls to
-    /// 'parse' for this trace format are made. Usually the function is called a single time at the
-    /// beginning of parsing, followed by repeated deserialisation and calls to 'parse' for
-    /// subsequent records. This functino is usually used to setup any ConcreteTypes that the
+    /// 'process' for this trace format are made. Usually the function is called a single time at the
+    /// beginning of parsing, followed by repeated deserialisation and calls to 'process' for
+    /// subsequent records. This function is usually used to setup any ConcreteTypes that the
     /// format requires.
     ///
     /// ### Example
@@ -49,7 +49,7 @@ pub trait Mapped: DeserializeOwned + Display + Send + Sized {
 
     /// Provision an offset
     ///
-    /// This may be called by the ingesting code, if so the code will supply and offset value in
+    /// This may be called by the ingesting code, if so the code will supply an offset value in
     /// it's data stream that identifies where this record starts. This is allowed to vary for
     /// different data sources, but should generally be something that could sensibly be added to
     /// the context for the record.
