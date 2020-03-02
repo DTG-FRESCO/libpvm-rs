@@ -26,21 +26,17 @@ quick_error! {
     #[derive(Debug)]
     pub enum ViewError {
         DuplicateViewName(name: &'static str) {
-            description("Attempting to register duplicate view")
             display("View with name {} already exists.", name)
         }
         MissingViewName(name: String){
-            description("Missing view with name")
             display("No View type registered under name {}.", name)
         }
         MissingViewID(id: usize){
-            description("Missing view with ID")
             display("No View type registered with id {}.", id)
         }
         ThreadingErr(err: io::Error) {
-            source(err)
+            cause(err)
             from()
-            description(err.description())
             display("Error spawning thread: {}", err)
         }
     }

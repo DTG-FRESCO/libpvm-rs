@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     fs,
     io::{self, Read},
     net,
@@ -104,7 +103,7 @@ const S_IFCHR: u32 = 0o20_000;
 const S_IFIFO: u32 = 0o10_000;
 
 fn err_str(err: nix::Error) -> String {
-    err.description().to_owned()
+    err.to_string()
 }
 
 fn get_fd_type(fd: RawFd) -> Result<IOType, String> {

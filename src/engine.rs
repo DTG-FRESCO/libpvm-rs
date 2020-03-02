@@ -23,31 +23,27 @@ quick_error! {
     #[derive(Debug)]
     pub enum EngineError {
         PipelineRunning {
-            description("Pipeline already running")
+            display("Pipeline already running")
         }
         PipelineNotRunning {
-            description("Pipeline not yet running")
+            display("Pipeline not yet running")
         }
         PluginVersionMismatch(path: String) {
-            description("Attempted to load a plugin with a mismatched plugin API version")
             display("Failed to load plugin {} due to a mismatched plugin API version", path)
         }
         PluginError(err: std::io::Error) {
-            source(err)
+            cause(err)
             from()
-            description(err.description())
             display("Plugin error: {}", err)
         }
         ProcessingError(err: PVMError) {
-            source(err)
+            cause(err)
             from()
-            description(err.description())
             display("Processing error: {}", err)
         }
         ViewError(err: ViewError) {
-            source(err)
+            cause(err)
             from()
-            description(err.description())
             display("View Orchestration error: {}", err)
         }
     }

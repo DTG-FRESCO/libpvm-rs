@@ -10,4 +10,4 @@ built = "0.3"
 
 [dependencies]
 pvm-data = { path = "../pvm-data" }
-quick-error = { package = "quick-error2", version = "2" }
+quick-error = "1.2"

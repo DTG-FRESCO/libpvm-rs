@@ -1,7 +1,5 @@
 #![feature(box_patterns)]
 #![feature(specialization)]
-#![feature(duration_float)]
-#![feature(custom_attribute)]
 #![feature(div_duration)]
 
 //!
